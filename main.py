@@ -53,7 +53,6 @@ def create_checklist_embed(all_items):
         embed.description = "まだ誰もキャラクターを登録していません。"
         return embed
     
-    # 1. キャラクター名でデータをグループ化
     grouped_data = {}
     for item in all_items:
         char_name = item.get('キャラクター名', '不明')
@@ -61,14 +60,11 @@ def create_checklist_embed(all_items):
             grouped_data[char_name] = []
         grouped_data[char_name].append(item)
     
-    # 2. キャラクター名をソート
     sorted_char_names = sorted(grouped_data.keys())
     
-    # 3. フィールドごとに文字列を組み立て、4096文字制限に対応
     field_value = ""
     field_count = 1
     for char_name in sorted_char_names:
-        # 現在のキャラクター情報を文字列として作成
         char_block = f"**・{char_name}**\n"
         holders = sorted(grouped_data[char_name], key=lambda x: x.get('追加者', ''))
         for holder in holders:
@@ -76,17 +72,13 @@ def create_checklist_embed(all_items):
             level = holder.get('レベル', 'N/A')
             char_block += f"　所持者: {author} \t Lv. {level}\n"
         
-        # 文字数制限のチェック (Discordのフィールド上限は1024文字)
         if len(field_value) + len(char_block) > 1024:
-            # 制限を超える場合は、現在の内容でフィールドを追加し、新しいフィールドを開始
             embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
             field_value = char_block
             field_count += 1
         else:
-            # 制限内であれば、現在のフィールドに追記
             field_value += char_block
 
-    # ループ終了後、残っている内容を最後のフィールドとして追加
     if field_value:
         embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
 
@@ -219,20 +211,23 @@ async def on_ready():
 
 @bot.slash_command(description="スプレッドシートの最新の全体状況を表示します。", guild_ids=GUILD_IDS)
 async def checklist(ctx):
+    await ctx.defer(ephemeral=False)
     if not spreadsheet:
         raise ValueError("スプレッドシートに接続できていません。")
     all_items = worksheet.get_all_records()
     embed = create_checklist_embed(all_items)
-    await ctx.respond(embed=embed)
+    await ctx.followup.send(embed=embed)
 
 @bot.slash_command(description="複数のキャラクターのレベルを一度に更新します。", guild_ids=GUILD_IDS)
 async def bulk_update(ctx):
+    await ctx.defer(ephemeral=True)
     if not CATEGORIES:
         raise ValueError("キャラクターリストがスプレッドシートから読み込めていません。")
-    await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name), ephemeral=True)
+    await ctx.followup.send("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name))
 
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
+    await ctx.defer(ephemeral=True)
     if not spreadsheet:
         raise ValueError("スプレッドシートに接続できていません。")
     all_data = worksheet.get_all_records()
@@ -247,13 +242,14 @@ async def my_list(ctx):
         for item in sorted_items:
             description += f"{item['キャラクター名']}: Lv. {item['レベル']}\n"
         embed.description = description
-    await ctx.respond(embed=embed, ephemeral=True)
+    await ctx.followup.send(embed=embed)
 
 @bot.slash_command(description="指定したキャラクターの所持者とレベルの一覧を表示します。", guild_ids=GUILD_IDS)
 async def search(
     ctx,
     キャラクター名: discord.Option(str, "検索したいキャラクターの名前を入力してください")
 ):
+    await ctx.defer(ephemeral=False)
     if not spreadsheet:
         raise ValueError("スプレッドシートに接続できていません。")
 
@@ -277,7 +273,7 @@ async def search(
             description += f"所持者: {author} \t Lv. {level}\n"
         embed.description = description
         
-    await ctx.respond(embed=embed)
+    await ctx.followup.send(embed=embed)
 
 # コマンドが間違ったチャンネルで使われたときのための、カスタムエラーを定義
 class WrongChannelError(discord.CheckFailure):
@@ -294,29 +290,25 @@ async def check_channel(ctx: discord.ApplicationContext):
 @bot.event
 async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
     """Handles errors that occur during command execution."""
-    # コマンドのインタラクションがまだ応答されていないか確認
-    if ctx.response.is_done():
-        # すでにインタラクションに応答している場合は、フォローアップメッセージを送信
-        await ctx.followup.send("予期せぬエラーが発生しました。", ephemeral=True)
-    else:
-        # まだ応答していない場合は、通常通りrespond()を使用
-        if isinstance(error, WrongChannelError):
-            await ctx.respond("このコマンドは指定されたチャンネルでのみ使用できます。", ephemeral=True)
-        elif isinstance(error, discord.ApplicationCommandInvokeError):
-            # コマンド実行中に発生したエラーを処理
-            original_error = error.original
-            if isinstance(original_error, ValueError) and "スプレッドシートに接続できていません。" in str(original_error):
-                # 特定のエラーメッセージを分かりやすく表示
-                await ctx.respond("スプレッドシートに接続できていません。管理者に連絡してください。", ephemeral=True)
-            else:
-                # その他のエラーは一般的なメッセージで対応
-                await ctx.respond(f"コマンド実行中にエラーが発生しました: {original_error}", ephemeral=True)
-                print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {original_error}")
+    # ctx.defer() が呼び出されたかどうかに関わらず、フォローアップで応答を試みる
+    if isinstance(error, WrongChannelError):
+        # チャンネルエラーは before_invoke で発生するため、まだ応答していない
+        await ctx.respond("このコマンドは指定されたチャンネルでのみ使用できます。", ephemeral=True)
+    elif isinstance(error, discord.ApplicationCommandInvokeError):
+        original_error = error.original
+        
+        # defer()で最初の応答は完了しているので、followup.sendで応答する
+        if isinstance(original_error, ValueError) and "スプレッドシートに接続できていません。" in str(original_error):
+            await ctx.followup.send("スプレッドシートに接続できていません。管理者に連絡してください。", ephemeral=True)
+            print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {original_error}")
         else:
-            await ctx.respond("予期せぬエラーが発生しました。", ephemeral=True)
-            print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {error}")
-            
+            await ctx.followup.send(f"コマンド実行中にエラーが発生しました: {original_error}", ephemeral=True)
+            print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {original_error}")
+    else:
+        # 予期せぬエラーはフォローアップで応答
+        await ctx.followup.send("予期せぬエラーが発生しました。", ephemeral=True)
+        print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {error}")
+
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
-
