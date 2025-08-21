@@ -331,23 +331,19 @@ async def check_channel(ctx: discord.ApplicationContext):
         raise WrongChannelError("This command can only be used in the designated channel.")
 
 @bot.event
-async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
-    """Handles errors that occur during command execution."""
-    if isinstance(error, WrongChannelError):
-        try:
-            await ctx.respond("This command can only be used in the designated channel.", ephemeral=True)
-        except discord.errors.InteractionResponded:
-            await ctx.followup.send("This command can only be used in the designated channel.", ephemeral=True)
-    else:
-        print(f"An unhandled error occurred in command {ctx.command.name}: {error}")
-        try:
-            await ctx.respond("An unexpected error occurred.", ephemeral=True)
-        except discord.errors.InteractionResponded:
+async def on_application_command_error(ctx, error):
+    try:
+        if ctx.response.is_done():
             await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
+        else:
+            await ctx.respond("An unexpected error occurred.", ephemeral=True)
+    except Exception as e:
+        print(f"Error while sending error message: {e}")
 
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
