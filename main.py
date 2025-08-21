@@ -212,6 +212,10 @@ class GroupSelectionView(View):
 @bot.event
 async def on_ready():
     print(f"{bot.user}としてログインしました")
+    print("--- 環境変数の読み込み状態チェック ---")
+    print(f"TARGET_CHANNEL_ID: {os.getenv('TARGET_CHANNEL_ID')}")
+    print(f"TARGET_MESSAGE_ID: {os.getenv('TARGET_MESSAGE_ID')}")
+    print("---------------------------------")
 
 @bot.slash_command(description="スプレッドシートの最新の全体状況を表示します。", guild_ids=GUILD_IDS)
 async def checklist(ctx):
@@ -330,6 +334,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
