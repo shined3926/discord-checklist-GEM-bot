@@ -52,10 +52,8 @@ def create_checklist_embed(all_items):
     if not all_items:
         embed.description = "まだ誰もキャラクターを登録していません。"
         return embed
-
-    # --- ↓↓↓ ここからが新しいフォーマット処理 ↓↓↓ ---
     
-    # 1. キャラクター名でデータをグループ化する
+    # 1. キャラクター名でデータをグループ化
     grouped_data = {}
     for item in all_items:
         char_name = item.get('キャラクター名', '不明')
@@ -63,24 +61,36 @@ def create_checklist_embed(all_items):
             grouped_data[char_name] = []
         grouped_data[char_name].append(item)
     
-    # 2. キャラクター名のアルファベット順（または50音順）にソートする
+    # 2. キャラクター名をソート
     sorted_char_names = sorted(grouped_data.keys())
     
-    # 3. フォーマットされた文字列を組み立てる
-    description = ""
+    # 3. フィールドごとに文字列を組み立て、4096文字制限に対応
+    field_value = ""
+    field_count = 1
     for char_name in sorted_char_names:
-        description += f"**・{char_name}**\n" # キャラクター名を太字で表示
-        
-        # そのキャラクターの所持者リストを名前順にソート
+        # 現在のキャラクター情報を文字列として作成
+        char_block = f"**・{char_name}**\n"
         holders = sorted(grouped_data[char_name], key=lambda x: x.get('追加者', ''))
-        
         for holder in holders:
             author = holder.get('追加者', '不明')
             level = holder.get('レベル', 'N/A')
-            # 箇条書きでインデントをつけて表示
-            description += f"　所持者: {author} \t Lv. {level}\n"
-            
-    embed.description = description
+            char_block += f"　所持者: {author} \t Lv. {level}\n"
+        
+        # 文字数制限のチェック (Discordのフィールド上限は1024文字)
+        if len(field_value) + len(char_block) > 1024:
+            # 制限を超える場合は、現在の内容でフィールドを追加し、新しいフィールドを開始
+            embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
+            field_value = char_block
+            field_count += 1
+        else:
+            # 制限内であれば、現在のフィールドに追記
+            field_value += char_block
+
+    # ループ終了後、残っている内容を最後のフィールドとして追加
+    if field_value:
+        embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
+
+    return embed
 
 # --- 一括更新用Modal & View ---
 class BulkUpdateModal(Modal):
@@ -199,5 +209,6 @@ async def my_list(ctx):
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
