@@ -6,28 +6,34 @@ import os
 from dotenv import load_dotenv
 
 # --- 設定項目 ---
-guild_ids_str = os.getenv("GUILD_IDS")
-GUILD_IDS = [int(guild_ids_str)] if guild_ids_str else []
+load_dotenv()
+GUILD_IDS = [int(id_str) for id_str in os.getenv("GUILD_IDS", "").split(',') if id_str]
 DATA_FILE = "data.json"
 CREDENTIALS_FILE = "credentials.json"
 SPREADSHEET_NAME = "グラナドエスパダM 党員所持リスト"
 # ----------------
 
 # --- Googleスプレッドシート連携 ---
+spreadsheet = None
+worksheet = None
+CATEGORIES = []
 try:
-    # 環境変数から認証情報を読み込む
-    creds_json_str = os.getenv("GCP_CREDENTIALS_JSON")
-    if not creds_json_str:
-        raise ValueError("環境変数 GCP_CREDENTIALS_JSON が設定されていません。")
-    
-    creds_dict = json.loads(creds_json_str)
-    gc = gspread.service_account_from_dict(creds_dict) # ファイルではなく辞書から認証
-    
+    gc = gspread.service_account(filename=CREDENTIALS_FILE)
     spreadsheet = gc.open(SPREADSHEET_NAME)
-    worksheet = spreadsheet.worksheet("BOT書き込み用") 
+    worksheet = spreadsheet.worksheet("BOT書き込み用")
     print("スプレッドシート「BOT書き込み用」への接続に成功しました。")
+    # キャラクターリストのシートを読み込む
+    char_worksheet = spreadsheet.worksheet("キャラクターリスト")
+    # A列の値をすべて取得 (ヘッダーを除く)
+    all_names = char_worksheet.col_values(1)
+    if len(all_names) > 1:
+        CATEGORIES = all_names[1:] # 2行目以降をカテゴリとして設定
+    print(f"{len(CATEGORIES)} 件のキャラクターをスプレッドシートから読み込みました。")
+except gspread.WorksheetNotFound as e:
+    print(f"エラー: シートが見つかりません - {e}")
+    spreadsheet = None
 except Exception as e:
-    print(f"スプレッドシートへの接続中にエラーが発生しました: {e}")
+    print(f"スプレッドシートへの接続・読み込み中にエラーが発生しました: {e}")
     spreadsheet = None
 # --------------------------------
 
@@ -57,14 +63,6 @@ def update_spreadsheet(all_checklists_data):
     print("スプレッドシートを更新しました。")
 
 # --- Discord Bot 本体 ---
-CATEGORIES = [
-    "マイスターロルク", "指揮者リオ", "リオ", "カルヤライネン", "暴走エミリア", 
-    "エミリア", "戦場のクラウド", "クラウド", "パンファルロ", "ティビュロン", 
-    "レティーフ", "スカベンジャーイェガネー", "バトルスミスイッジ", 
-    "スナイパーベルネルリ", "ロト", "ロレッタ", "ベイン", "バネッサ", 
-    "海賊アデリーナ", "アイラワン", "ヴァレリア", "賢者エミリア", "ギルティネ", 
-    "ジェイナ", "エンジ", "ジャック"
-]
 MODAL_GROUP_SIZE = 5
 
 bot = discord.Bot()
