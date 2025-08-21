@@ -236,12 +236,10 @@ async def bulk_update(ctx):
     if not CATEGORIES:
         await ctx.respond("キャラクターリストがスプレッドシートから読み込めていません。", ephemeral=True)
         return
-        
-    response = await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name), ephemeral=True)
-    message = await response.original_response()
 
-    view = GroupSelectionView(author_name=ctx.author.display_name, original_message=message)
-    await response.edit(view=view)
+    # View を作成して最初の応答で一緒に渡す
+    view = GroupSelectionView(author_name=ctx.author.display_name)
+    await ctx.respond("更新したいキャラクターのグループを選択してください。", view=view, ephemeral=True)
 
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
@@ -323,20 +321,21 @@ async def check_channel(ctx: discord.ApplicationContext):
 async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
     """Handles errors that occur during command execution."""
     if isinstance(error, WrongChannelError):
-        await ctx.respond("This command can only be used in the designated channel.", ephemeral=True)
+        try:
+            await ctx.respond("This command can only be used in the designated channel.", ephemeral=True)
+        except discord.errors.InteractionResponded:
+            await ctx.followup.send("This command can only be used in the designated channel.", ephemeral=True)
     else:
-        # For other errors, log them to the console
         print(f"An unhandled error occurred in command {ctx.command.name}: {error}")
-        # Optionally, send a generic error message to the user
         try:
             await ctx.respond("An unexpected error occurred.", ephemeral=True)
         except discord.errors.InteractionResponded:
-            # If we already responded, we can follow up
             await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
 
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
