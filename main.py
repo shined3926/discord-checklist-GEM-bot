@@ -220,7 +220,7 @@ async def on_ready():
 @bot.slash_command(description="スプレッドシートの最新の全体状況を表示します。", guild_ids=GUILD_IDS)
 async def checklist(ctx):
     if not spreadsheet:
-        raise Exception("スプレッドシートに接続できていません。")
+        raise ValueError("スプレッドシートに接続できていません。")
     all_items = worksheet.get_all_records()
     embed = create_checklist_embed(all_items)
     await ctx.respond(embed=embed)
@@ -228,13 +228,13 @@ async def checklist(ctx):
 @bot.slash_command(description="複数のキャラクターのレベルを一度に更新します。", guild_ids=GUILD_IDS)
 async def bulk_update(ctx):
     if not CATEGORIES:
-        raise Exception("キャラクターリストがスプレッドシートから読み込めていません。")
+        raise ValueError("キャラクターリストがスプレッドシートから読み込めていません。")
     await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name), ephemeral=True)
 
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
     if not spreadsheet:
-        raise Exception("スプレッドシートに接続できていません。")
+        raise ValueError("スプレッドシートに接続できていません。")
     all_data = worksheet.get_all_records()
     author_name = ctx.author.display_name
     my_items = [row for row in all_data if row.get('追加者') == author_name]
@@ -255,7 +255,7 @@ async def search(
     キャラクター名: discord.Option(str, "検索したいキャラクターの名前を入力してください")
 ):
     if not spreadsheet:
-        raise Exception("スプレッドシートに接続できていません。")
+        raise ValueError("スプレッドシートに接続できていません。")
 
     all_data = worksheet.get_all_records()
 
@@ -294,21 +294,29 @@ async def check_channel(ctx: discord.ApplicationContext):
 @bot.event
 async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
     """Handles errors that occur during command execution."""
+    # コマンドのインタラクションがまだ応答されていないか確認
     if ctx.response.is_done():
         # すでにインタラクションに応答している場合は、フォローアップメッセージを送信
         await ctx.followup.send("予期せぬエラーが発生しました。", ephemeral=True)
     else:
-        # まだ応答していない場合は、通常通り respond() を使用
+        # まだ応答していない場合は、通常通りrespond()を使用
         if isinstance(error, WrongChannelError):
             await ctx.respond("このコマンドは指定されたチャンネルでのみ使用できます。", ephemeral=True)
         elif isinstance(error, discord.ApplicationCommandInvokeError):
+            # コマンド実行中に発生したエラーを処理
             original_error = error.original
-            await ctx.respond(f"コマンド実行中にエラーが発生しました: {original_error}", ephemeral=True)
-            print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {original_error}")
+            if isinstance(original_error, ValueError) and "スプレッドシートに接続できていません。" in str(original_error):
+                # 特定のエラーメッセージを分かりやすく表示
+                await ctx.respond("スプレッドシートに接続できていません。管理者に連絡してください。", ephemeral=True)
+            else:
+                # その他のエラーは一般的なメッセージで対応
+                await ctx.respond(f"コマンド実行中にエラーが発生しました: {original_error}", ephemeral=True)
+                print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {original_error}")
         else:
-            await ctx.respond(f"予期せぬエラーが発生しました。", ephemeral=True)
+            await ctx.respond("予期せぬエラーが発生しました。", ephemeral=True)
             print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {error}")
-
+            
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
