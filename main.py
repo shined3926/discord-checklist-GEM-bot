@@ -34,7 +34,7 @@ try:
     char_worksheet = spreadsheet.worksheet("キャラクターリスト")
     all_names = char_worksheet.col_values(1)
     if len(all_names) > 1:
-        CATEGORIES = all_names[1:]
+        CATEGORIES = all_names
     print(f"{len(CATEGORIES)} 件のキャラクターをスプレッドシートから読み込みました。")
 
 except Exception as e:
@@ -248,6 +248,7 @@ async def search(
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
