@@ -262,10 +262,13 @@ async def my_list(ctx):
     except Exception as e:
         await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
 
+# main.py の中の /search コマンドを置き換える
+
 @bot.slash_command(description="指定したキャラクターの所持者とレベルの一覧を表示します。", guild_ids=GUILD_IDS)
 async def search(
     ctx,
-    キャラクター名: discord.Option(str, "検索したいキャラクターの名前を入力してください", choices=CATEGORIES)
+    # ↓↓↓ choices=CATEGORIES の部分を削除しました ↓↓↓
+    キャラクター名: discord.Option(str, "検索したいキャラクターの名前を入力してください")
 ):
     if not spreadsheet:
         await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True)
@@ -275,7 +278,7 @@ async def search(
         # スプレッドシートから全データを取得
         all_data = worksheet.get_all_records()
 
-        # 入力されたキャラクター名でデータを絞り込む
+        # 入力されたキャラクター名でデータを絞り込む (完全一致)
         filtered_items = [row for row in all_data if row.get('キャラクター名') == キャラクター名]
         
         # Embedを作成して結果を表示
@@ -304,6 +307,7 @@ async def search(
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
