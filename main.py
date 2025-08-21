@@ -211,30 +211,30 @@ class GroupSelectionView(View):
             return False
             
         return True
-
-JST = pytz.timezone('Asia/Tokyo')
-
-def calculate_next_fb(base_time_str: str, interval_hours: int) -> datetime.datetime:
-    """次のFB時間を計算する関数"""
-    now = datetime.datetime.now(JST)
+        
+    JST = pytz.timezone('Asia/Tokyo')
     
-    # 今日の日付で基準時間を作成
-    today_base_time = JST.localize(datetime.datetime.strptime(f"{now.strftime('%Y-%m-%d')} {base_time_str}", "%Y-%m-%d %H:%M"))
+    def calculate_next_fb(base_time_str: str, interval_hours: int) -> datetime.datetime:
+        """次のFB時間を計算する関数"""
+        now = datetime.datetime.now(JST)
+        
+        # 今日の日付で基準時間を作成
+        today_base_time = JST.localize(datetime.datetime.strptime(f"{now.strftime('%Y-%m-%d')} {base_time_str}", "%Y-%m-%d %H:%M"))
+        
+        # 基準となる過去の時間を探す
+        time_diff_seconds = (now - today_base_time).total_seconds()
+        interval_seconds = interval_hours * 3600
+        
+        cycles_ago = time_diff_seconds / interval_seconds
+        
+        most_recent_base_time = today_base_time + datetime.timedelta(seconds=int(cycles_ago) * interval_seconds)
+        
+        if most_recent_base_time > now:
+            most_recent_base_time -= datetime.timedelta(seconds=interval_seconds)
     
-    # 基準となる過去の時間を探す
-    time_diff_seconds = (now - today_base_time).total_seconds()
-    interval_seconds = interval_hours * 3600
-    
-    cycles_ago = time_diff_seconds / interval_seconds
-    
-    most_recent_base_time = today_base_time + datetime.timedelta(seconds=int(cycles_ago) * interval_seconds)
-    
-    if most_recent_base_time > now:
-        most_recent_base_time -= datetime.timedelta(seconds=interval_seconds)
-
-    next_time = most_recent_base_time + datetime.timedelta(seconds=interval_seconds)
-    
-    return next_time
+        next_time = most_recent_base_time + datetime.timedelta(seconds=interval_seconds)
+        
+        return next_time
 
 # --- コマンド定義 ---
 @bot.event
@@ -335,18 +335,6 @@ async def search(
 class WrongChannelError(discord.CheckFailure):
     pass
     
-@bot.slash_command(description="次のコインブラFBの時間を通知します。", guild_ids=GUILD_IDS)
-async def coinbra_fb(ctx):
-    # 初回20時、10時間周期
-    next_fb_time = calculate_next_fb("20:00", 10)
-    await ctx.respond(f"次のコインブラFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
-
-@bot.slash_command(description="次のオーシュFBの時間を通知します。", guild_ids=GUILD_IDS)
-async def oshu_fb(ctx):
-    # 初回22時、21時間周期
-    next_fb_time = calculate_next_fb("22:00", 21)
-    await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
-
 @bot.before_invoke
 async def check_channel(ctx: discord.ApplicationContext):
     """Checks if the command is used in the designated channel before execution."""
@@ -371,9 +359,22 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
             # If we already responded, we can follow up
             await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
 
+@bot.slash_command(description="次のコインブラFBの時間を通知します。", guild_ids=GUILD_IDS)
+async def coinbra_fb(ctx):
+    # 初回20時、10時間周期
+    next_fb_time = calculate_next_fb("20:00", 10)
+    await ctx.respond(f"次のコインブラFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
+
+@bot.slash_command(description="次のオーシュFBの時間を通知します。", guild_ids=GUILD_IDS)
+async def oshu_fb(ctx):
+    # 初回22時、21時間周期
+    next_fb_time = calculate_next_fb("22:00", 21)
+    await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
+
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
