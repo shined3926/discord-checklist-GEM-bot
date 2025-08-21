@@ -148,19 +148,69 @@ class BulkUpdateModal(Modal):
             await interaction.response.send_message(f"スプレッドシート更新中にエラーが発生: {e}", ephemeral=True)
 
 class GroupSelectionView(View):
-    def __init__(self):
+    def __init__(self, author_name: str, original_message=None):
         super().__init__(timeout=180)
-        category_chunks = [CATEGORIES[i:i + MODAL_GROUP_SIZE] for i in range(0, len(CATEGORIES), MODAL_GROUP_SIZE)]
-        for i, chunk in enumerate(category_chunks[:5]):
-            self.add_item(Button(label=f"グループ {i+1} ({chunk[0]}～)", style=discord.ButtonStyle.secondary, custom_id=f"group_select_{i}"))
+        self.author_name = author_name
+        self.original_message = original_message # bulk_updateからのメッセージを保持
+        self.current_page = 0
+        
+        # カテゴリーをチャンクに分割
+        self.category_chunks = [CATEGORIES[i:i + MODAL_GROUP_SIZE] for i in range(0, len(CATEGORIES), MODAL_GROUP_SIZE)]
+        self.total_pages = len(self.category_chunks)
+
+        self.update_buttons()
+
+    def update_buttons(self):
+        """現在のページに基づいてボタンを再描画する"""
+        self.clear_items() # 現在のボタンをすべて削除
+
+        # 現在のページのグループボタンを追加 (1ページあたり4グループまで)
+        start_index = self.current_page * 4
+        end_index = start_index + 4
+        
+        for i, chunk in enumerate(self.category_chunks[start_index:end_index]):
+            self.add_item(Button(
+                label=f"グループ {start_index + i + 1} ({chunk[0]}～)",
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"group_select_{start_index + i}"
+            ))
+
+        # ページネーションボタンを追加
+        if self.current_page > 0:
+            self.add_item(Button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page"))
+        
+        if self.current_page < self.total_pages // 4:
+            self.add_item(Button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         custom_id = interaction.data.get("custom_id")
+
+        if custom_id == "prev_page":
+            if self.current_page > 0:
+                self.current_page -= 1
+                self.update_buttons()
+                await interaction.response.edit_message(view=self)
+            return False
+
+        if custom_id == "next_page":
+            self.current_page += 1
+            self.update_buttons()
+            await interaction.response.edit_message(view=self)
+            return False
+
         if custom_id and custom_id.startswith("group_select"):
             group_index = int(custom_id.split('_')[-1])
-            category_chunks = [CATEGORIES[i:i + MODAL_GROUP_SIZE] for i in range(0, len(CATEGORIES), MODAL_GROUP_SIZE)]
-            modal = BulkUpdateModal(characters_to_update=category_chunks[group_index], author_name=interaction.user.display_name)
-            await interaction.response.send_modal(modal); return False
+            selected_chunk = self.category_chunks[group_index]
+            
+            # bulk_updateコマンドのメッセージをモーダルに渡す
+            modal = BulkUpdateModal(
+                characters_to_update=selected_chunk,
+                author_name=self.author_name,
+                original_message=self.original_message # ここを修正
+            )
+            await interaction.response.send_modal(modal)
+            return False
+            
         return True
 
 # --- コマンド定義 ---
@@ -179,11 +229,17 @@ async def checklist(ctx):
     except Exception as e:
         await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
 
-@bot.slash_command(description="複数のキャラクターのレベルを一度に登録・更新します。", guild_ids=GUILD_IDS)
+@bot.slash_command(description="複数のキャラクターのレベルを一度に更新します。", guild_ids=GUILD_IDS)
 async def bulk_update(ctx):
     if not CATEGORIES:
-        await ctx.respond("キャラクターリストがスプレッドシートから読み込めていません。", ephemeral=True); return
-    await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(), ephemeral=True)
+        await ctx.respond("キャラクターリストがスプレッドシートから読み込めていません。", ephemeral=True)
+        return
+        
+    response = await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name), ephemeral=True)
+    message = await response.original_response()
+
+    view = GroupSelectionView(author_name=ctx.author.display_name, original_message=message)
+    await response.edit(view=view)
 
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
@@ -248,6 +304,7 @@ async def search(
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
