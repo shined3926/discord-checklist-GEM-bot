@@ -14,13 +14,17 @@ SPREADSHEET_NAME = "グラナドエスパダM 党員所持リスト"
 
 # --- Googleスプレッドシート連携 ---
 try:
-    gc = gspread.service_account(filename=CREDENTIALS_FILE)
+    # 環境変数から認証情報を読み込む
+    creds_json_str = os.getenv("GCP_CREDENTIALS_JSON")
+    if not creds_json_str:
+        raise ValueError("環境変数 GCP_CREDENTIALS_JSON が設定されていません。")
+    
+    creds_dict = json.loads(creds_json_str)
+    gc = gspread.service_account_from_dict(creds_dict) # ファイルではなく辞書から認証
+    
     spreadsheet = gc.open(SPREADSHEET_NAME)
     worksheet = spreadsheet.worksheet("BOT書き込み用") 
     print("スプレッドシート「BOT書き込み用」への接続に成功しました。")
-except gspread.WorksheetNotFound:
-    print("エラー: スプレッドシートに「BOT書き込み用」という名前のシートが見つかりませんでした。")
-    spreadsheet = None
 except Exception as e:
     print(f"スプレッドシートへの接続中にエラーが発生しました: {e}")
     spreadsheet = None
