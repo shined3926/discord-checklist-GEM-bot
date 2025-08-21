@@ -118,7 +118,8 @@ class BulkUpdateModal(Modal):
 
     async def callback(self, interaction: discord.Interaction):
         if not spreadsheet:
-            await interaction.response.send_message("スプレッドシートに接続できていません。", ephemeral=True); return
+            await interaction.response.send_message("スプレッドシートに接続できていません。", ephemeral=True)
+            return
 
         try:
             all_data = worksheet.get_all_records()
@@ -131,7 +132,8 @@ class BulkUpdateModal(Modal):
                     row_to_update = -1
                     for i, row in enumerate(all_data):
                         if row.get('キャラクター名') == char_name and row.get('追加者') == self.author_name:
-                            row_to_update = i + 2; break
+                            row_to_update = i + 2
+                            break
                     
                     if row_to_update != -1:
                         batch_update_requests.append({'range': f'B{row_to_update}', 'values': [[new_level]]})
@@ -151,7 +153,7 @@ class GroupSelectionView(View):
     def __init__(self, author_name: str, original_message=None):
         super().__init__(timeout=180)
         self.author_name = author_name
-        self.original_message = original_message # bulk_updateからのメッセージを保持
+        self.original_message = original_message
         self.current_page = 0
         
         self.category_chunks = [CATEGORIES[i:i + MODAL_GROUP_SIZE] for i in range(0, len(CATEGORIES), MODAL_GROUP_SIZE)]
@@ -174,7 +176,6 @@ class GroupSelectionView(View):
         if self.current_page > 0:
             self.add_item(Button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page"))
         
-        # ページの計算を修正
         if (self.current_page + 1) * 4 < len(self.category_chunks):
             self.add_item(Button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page"))
 
@@ -198,7 +199,6 @@ class GroupSelectionView(View):
             group_index = int(custom_id.split('_')[-1])
             selected_chunk = self.category_chunks[group_index]
             
-            # ↓↓↓ ここから 'original_message' を渡さないように修正 ↓↓↓
             modal = BulkUpdateModal(
                 characters_to_update=selected_chunk,
                 author_name=self.author_name,
@@ -220,88 +220,65 @@ async def on_ready():
 @bot.slash_command(description="スプレッドシートの最新の全体状況を表示します。", guild_ids=GUILD_IDS)
 async def checklist(ctx):
     if not spreadsheet:
-        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True); return
-    try:
-        all_items = worksheet.get_all_records()
-        embed = create_checklist_embed(all_items)
-        await ctx.respond(embed=embed)
-    except Exception as e:
-        await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
+        raise Exception("スプレッドシートに接続できていません。")
+    all_items = worksheet.get_all_records()
+    embed = create_checklist_embed(all_items)
+    await ctx.respond(embed=embed)
 
 @bot.slash_command(description="複数のキャラクターのレベルを一度に更新します。", guild_ids=GUILD_IDS)
 async def bulk_update(ctx):
     if not CATEGORIES:
-        await ctx.respond("キャラクターリストがスプレッドシートから読み込めていません。", ephemeral=True)
-        return
+        raise Exception("キャラクターリストがスプレッドシートから読み込めていません。")
         
-    response = await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name), ephemeral=True)
-    message = await response.original_response()
-
-    view = GroupSelectionView(author_name=ctx.author.display_name, original_message=message)
-    await response.edit(view=view)
+    await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name), ephemeral=True)
 
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
     if not spreadsheet:
-        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True); return
-    try:
-        all_data = worksheet.get_all_records()
-        author_name = ctx.author.display_name
-        my_items = [row for row in all_data if row.get('追加者') == author_name]
-        embed = discord.Embed(title=f"{author_name}さんの登録キャラクター一覧", color=discord.Color.green())
-        if not my_items:
-            embed.description = "あなたが登録したキャラクターは見つかりませんでした。"
-        else:
-            description = ""
-            sorted_items = sorted(my_items, key=lambda x: x.get('キャラクター名', ''))
-            for item in sorted_items:
-                description += f"{item['キャラクター名']}: Lv. {item['レベル']}\n"
-            embed.description = description
-        await ctx.respond(embed=embed, ephemeral=True)
-    except Exception as e:
-        await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
-
-# main.py の中の /search コマンドを置き換える
+        raise Exception("スプレッドシートに接続できていません。")
+    all_data = worksheet.get_all_records()
+    author_name = ctx.author.display_name
+    my_items = [row for row in all_data if row.get('追加者') == author_name]
+    embed = discord.Embed(title=f"{author_name}さんの登録キャラクター一覧", color=discord.Color.green())
+    if not my_items:
+        embed.description = "あなたが登録したキャラクターは見つかりませんでした。"
+    else:
+        description = ""
+        sorted_items = sorted(my_items, key=lambda x: x.get('キャラクター名', ''))
+        for item in sorted_items:
+            description += f"{item['キャラクター名']}: Lv. {item['レベル']}\n"
+        embed.description = description
+    await ctx.respond(embed=embed, ephemeral=True)
 
 @bot.slash_command(description="指定したキャラクターの所持者とレベルの一覧を表示します。", guild_ids=GUILD_IDS)
 async def search(
     ctx,
-    # ↓↓↓ choices=CATEGORIES の部分を削除しました ↓↓↓
     キャラクター名: discord.Option(str, "検索したいキャラクターの名前を入力してください")
 ):
     if not spreadsheet:
-        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True)
-        return
+        raise Exception("スプレッドシートに接続できていません。")
 
-    try:
-        # スプレッドシートから全データを取得
-        all_data = worksheet.get_all_records()
+    all_data = worksheet.get_all_records()
 
-        # 入力されたキャラクター名でデータを絞り込む (完全一致)
-        filtered_items = [row for row in all_data if row.get('キャラクター名') == キャラクター名]
+    filtered_items = [row for row in all_data if row.get('キャラクター名') == キャラクター名]
+    
+    embed = discord.Embed(
+        title=f"「{キャラクター名}」の検索結果",
+        color=discord.Color.purple()
+    )
+
+    if not filtered_items:
+        embed.description = "このキャラクターを登録している人はいません。"
+    else:
+        description = ""
+        sorted_items = sorted(filtered_items, key=lambda x: x.get('追加者', ''))
+        for item in sorted_items:
+            author = item.get('追加者', '不明')
+            level = item.get('レベル', 'N/A')
+            description += f"所持者: {author} \t Lv. {level}\n"
+        embed.description = description
         
-        # Embedを作成して結果を表示
-        embed = discord.Embed(
-            title=f"「{キャラクター名}」の検索結果",
-            color=discord.Color.purple()
-        )
-
-        if not filtered_items:
-            embed.description = "このキャラクターを登録している人はいません。"
-        else:
-            description = ""
-            # 追加者名でソートして表示
-            sorted_items = sorted(filtered_items, key=lambda x: x.get('追加者', ''))
-            for item in sorted_items:
-                author = item.get('追加者', '不明')
-                level = item.get('レベル', 'N/A')
-                description += f"所持者: {author} \t Lv. {level}\n"
-            embed.description = description
-            
-        await ctx.respond(embed=embed)
-
-    except Exception as e:
-        await ctx.respond(f"検索中にエラーが発生しました: {e}", ephemeral=True)
+    await ctx.respond(embed=embed)
 
 # コマンドが間違ったチャンネルで使われたときのための、カスタムエラーを定義
 class WrongChannelError(discord.CheckFailure):
@@ -310,7 +287,6 @@ class WrongChannelError(discord.CheckFailure):
 @bot.before_invoke
 async def check_channel(ctx: discord.ApplicationContext):
     """Checks if the command is used in the designated channel before execution."""
-    # Get the target channel ID from the environment variables
     target_channel_id = int(os.getenv("TARGET_CHANNEL_ID", 0))
 
     if target_channel_id != 0 and ctx.channel.id != target_channel_id:
@@ -319,29 +295,28 @@ async def check_channel(ctx: discord.ApplicationContext):
 @bot.event
 async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
     """Handles errors that occur during command execution."""
-    if isinstance(error, WrongChannelError):
-        await ctx.respond("This command can only be used in the designated channel.", ephemeral=True)
+    # コマンドのインタラクションがまだ応答されていないか確認
+    if ctx.response.is_done():
+        # すでにインタラクションに応答している場合は、フォローアップメッセージを送信
+        # これは、例えば bulk_update コマンドでボタンが押された後にエラーが発生した場合に有効
+        await ctx.followup.send("予期せぬエラーが発生しました。", ephemeral=True)
     else:
-        # For other errors, log them to the console
-        print(f"An unhandled error occurred in command {ctx.command.name}: {error}")
-        # Optionally, send a generic error message to the user
-        try:
-            await ctx.respond("An unexpected error occurred.", ephemeral=True)
-        except discord.errors.InteractionResponded:
-            # If we already responded, we can follow up
-            await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
+        # まだ応答していない場合は、通常通りrespond()を使用
+        if isinstance(error, WrongChannelError):
+            await ctx.respond("このコマンドは指定されたチャンネルでのみ使用できます。", ephemeral=True)
+        elif isinstance(error, discord.ApplicationCommandInvokeError):
+            # コマンド実行中に発生したエラーを処理
+            original_error = error.original
+            if isinstance(original_error, Exception):
+                await ctx.respond(f"コマンド実行中にエラーが発生しました: {original_error}", ephemeral=True)
+                print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {original_error}")
+            else:
+                await ctx.respond("予期せぬエラーが発生しました。", ephemeral=True)
+                print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {error}")
+        else:
+            await ctx.respond("予期せぬエラーが発生しました。", ephemeral=True)
+            print(f"コマンド {ctx.command.name} で予期せぬエラーが発生: {error}")
 
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
-
-
-
-
-
-
-
-
-
-
-
