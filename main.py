@@ -332,17 +332,25 @@ async def check_channel(ctx: discord.ApplicationContext):
 
 @bot.event
 async def on_application_command_error(ctx, error):
+    # ログ出力してデバッグしやすくする
+    import traceback
+    print("------ Application Command Error ------")
+    traceback.print_exception(type(error), error, error.__traceback__)
+    print("---------------------------------------")
+
+    # 既に respond 済みかどうかで分岐
     try:
         if ctx.response.is_done():
             await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
         else:
             await ctx.respond("An unexpected error occurred.", ephemeral=True)
     except Exception as e:
-        print(f"Error while sending error message: {e}")
+        print(f"[ErrorHandler] Failed to send error message: {e}")
 
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
