@@ -244,23 +244,36 @@ async def bulk_update(ctx):
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
     if not spreadsheet:
-        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True); return
+        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True)
+        return
     try:
         all_data = worksheet.get_all_records()
         author_name = ctx.author.display_name
         my_items = [row for row in all_data if row.get('追加者') == author_name]
-        embed = discord.Embed(title=f"{author_name}さんの登録キャラクター一覧", color=discord.Color.green())
+
+        embed = discord.Embed(
+            title=f"{author_name}さんの登録キャラクター一覧",
+            color=discord.Color.green()
+        )
+
         if not my_items:
             embed.description = "あなたが登録したキャラクターは見つかりませんでした。"
         else:
-            description = ""
             sorted_items = sorted(my_items, key=lambda x: x.get('キャラクター名', ''))
-            for item in sorted_items:
-                description += f"{item['キャラクター名']}: Lv. {item['レベル']}\n"
+            description = "\n".join(
+                f"{item['キャラクター名']}: Lv. {item['レベル']}"
+                for item in sorted_items
+            )
             embed.description = description
+
         await ctx.respond(embed=embed, ephemeral=True)
+
     except Exception as e:
-        await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
+        # すでに respond していたら followup を使う
+        if ctx.response.is_done():
+            await ctx.followup.send(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
+        else:
+            await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
 
 # main.py の中の /search コマンドを置き換える
 
@@ -335,6 +348,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
