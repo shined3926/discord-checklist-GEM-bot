@@ -305,25 +305,32 @@ class WrongChannelError(discord.CheckFailure):
 
 @bot.before_invoke
 async def check_channel(ctx: discord.ApplicationContext):
-    """全てのコマンドの実行前に呼び出される関数"""
-    # .envで指定されたチャンネルIDと、コマンドが実行されたチャンネルIDを比較
-    if ctx.channel.id != TARGET_CHANNEL_ID:
-        # 違うチャンネルの場合、特別なエラーを発生させてコマンドの実行を止める
+    """Checks if the command is used in the designated channel before execution."""
+    # Get the target channel ID from the environment variables
+    target_channel_id = int(os.getenv("TARGET_CHANNEL_ID", 0))
+
+    if target_channel_id != 0 and ctx.channel.id != target_channel_id:
         raise WrongChannelError("This command can only be used in the designated channel.")
+
 @bot.event
 async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
-    """コマンドの実行でエラーが発生したときに呼び出される関数"""
-    # もし発生したエラーが、先ほど定義した「WrongChannelError」だった場合
+    """Handles errors that occur during command execution."""
     if isinstance(error, WrongChannelError):
-        # 利用者にだけ見えるメッセージで、エラー内容を伝える
-        await ctx.respond("このコマンドは指定されたチャンネルでのみ使用できます。", ephemeral=True)
+        await ctx.respond("This command can only be used in the designated channel.", ephemeral=True)
     else:
-        # それ以外のエラーの場合は、これまで通りログに出力する
-        raise error
+        # For other errors, log them to the console
+        print(f"An unhandled error occurred in command {ctx.command.name}: {error}")
+        # Optionally, send a generic error message to the user
+        try:
+            await ctx.respond("An unexpected error occurred.", ephemeral=True)
+        except discord.errors.InteractionResponded:
+            # If we already responded, we can follow up
+            await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
 
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
