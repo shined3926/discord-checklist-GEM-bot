@@ -6,7 +6,8 @@ import os
 from dotenv import load_dotenv
 
 # --- 設定項目 ---
-GUILD_IDS = [715003071234703413] 
+guild_ids_str = os.getenv("GUILD_IDS")
+GUILD_IDS = [int(guild_ids_str)] if guild_ids_str else []
 DATA_FILE = "data.json"
 CREDENTIALS_FILE = "credentials.json"
 SPREADSHEET_NAME = "グラナドエスパダM 党員所持リスト"
