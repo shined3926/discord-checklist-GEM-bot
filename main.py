@@ -246,6 +246,7 @@ async def my_list(ctx):
     if not spreadsheet:
         await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True)
         return
+
     try:
         all_data = worksheet.get_all_records()
         author_name = ctx.author.display_name
@@ -269,11 +270,15 @@ async def my_list(ctx):
         await ctx.respond(embed=embed, ephemeral=True)
 
     except Exception as e:
-        # すでに respond していたら followup を使う
-        if ctx.response.is_done():
-            await ctx.followup.send(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
-        else:
-            await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
+        # すでに respond 済みなら followup を使う
+        try:
+            if ctx.response.is_done():
+                await ctx.followup.send(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
+            else:
+                await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
+        except Exception as inner_e:
+            print(f"[my_list error handler] Failed to send error message: {inner_e}")
+
 
 # main.py の中の /search コマンドを置き換える
 
@@ -350,6 +355,7 @@ async def on_application_command_error(ctx, error):
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
