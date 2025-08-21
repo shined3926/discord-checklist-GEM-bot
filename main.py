@@ -109,13 +109,32 @@ class BulkUpdateModal(Modal):
     def __init__(self, characters_to_update: list, original_message, author_name: str):
         super().__init__(title="キャラクターレベルの一括更新")
         self.characters, self.original_message, self.author_name = characters_to_update, original_message, author_name
-        message_id = str(self.original_message.id)
-        user_items = {item['category']: item['value'] for item in checklists.get(message_id, []) if item.get('author') == self.author_name}
+        user_items = {}
+        # スプレッドシートに接続できている場合のみ、データを読み込む
+        if spreadsheet:
+            try:
+                all_data = worksheet.get_all_records()
+                # スプレッドシートのデータから、自分の登録データだけを抽出
+                user_items = {
+                    row['キャラクター名']: row['レベル'] 
+                    for row in all_data 
+                    if row.get('追加者') == self.author_name
+                }
+            except Exception as e:
+                print(f"一括更新のためのデータ読み込み中にエラー: {e}")
+        # --- ↑↑↑ 変更ここまで ↑↑↑ ---
+
         for char_name in self.characters:
-            current_level = user_items.get(char_name, "")
-            self.add_item(InputText(label=char_name, placeholder=f"現在のレベル: {current_level}" if current_level else "未登録", custom_id=char_name, required=False))
+            current_level = user_items.get(char_name, "") # 現在のレベルを取得
+            self.add_item(InputText(
+                label=char_name,
+                placeholder=f"現在のレベル: {current_level}" if current_level else "未登録",
+                custom_id=char_name,
+                required=False
+            ))
 
     async def callback(self, interaction: discord.Interaction):
+        # (callbackの中身は変更ありません)
         message_id = str(self.original_message.id)
         if message_id not in checklists:
             await interaction.response.send_message("このリストは古いです。", ephemeral=True); return
