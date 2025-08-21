@@ -154,17 +154,13 @@ class GroupSelectionView(View):
         self.original_message = original_message # bulk_updateからのメッセージを保持
         self.current_page = 0
         
-        # カテゴリーをチャンクに分割
         self.category_chunks = [CATEGORIES[i:i + MODAL_GROUP_SIZE] for i in range(0, len(CATEGORIES), MODAL_GROUP_SIZE)]
         self.total_pages = len(self.category_chunks)
 
         self.update_buttons()
 
     def update_buttons(self):
-        """現在のページに基づいてボタンを再描画する"""
-        self.clear_items() # 現在のボタンをすべて削除
-
-        # 現在のページのグループボタンを追加 (1ページあたり4グループまで)
+        self.clear_items()
         start_index = self.current_page * 4
         end_index = start_index + 4
         
@@ -175,11 +171,11 @@ class GroupSelectionView(View):
                 custom_id=f"group_select_{start_index + i}"
             ))
 
-        # ページネーションボタンを追加
         if self.current_page > 0:
             self.add_item(Button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page"))
         
-        if self.current_page < self.total_pages // 4:
+        # ページの計算を修正
+        if (self.current_page + 1) * 4 < len(self.category_chunks):
             self.add_item(Button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -202,11 +198,10 @@ class GroupSelectionView(View):
             group_index = int(custom_id.split('_')[-1])
             selected_chunk = self.category_chunks[group_index]
             
-            # bulk_updateコマンドのメッセージをモーダルに渡す
+            # ↓↓↓ ここから 'original_message' を渡さないように修正 ↓↓↓
             modal = BulkUpdateModal(
                 characters_to_update=selected_chunk,
                 author_name=self.author_name,
-                original_message=self.original_message # ここを修正
             )
             await interaction.response.send_modal(modal)
             return False
@@ -307,6 +302,7 @@ async def search(
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
