@@ -206,9 +206,49 @@ async def my_list(ctx):
     except Exception as e:
         await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
 
+@bot.slash_command(description="指定したキャラクターの所持者とレベルの一覧を表示します。", guild_ids=GUILD_IDS)
+async def search(
+    ctx,
+    キャラクター名: discord.Option(str, "検索したいキャラクターの名前を入力してください", choices=CATEGORIES)
+):
+    if not spreadsheet:
+        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True)
+        return
+
+    try:
+        # スプレッドシートから全データを取得
+        all_data = worksheet.get_all_records()
+
+        # 入力されたキャラクター名でデータを絞り込む
+        filtered_items = [row for row in all_data if row.get('キャラクター名') == キャラクター名]
+        
+        # Embedを作成して結果を表示
+        embed = discord.Embed(
+            title=f"「{キャラクター名}」の検索結果",
+            color=discord.Color.purple()
+        )
+
+        if not filtered_items:
+            embed.description = "このキャラクターを登録している人はいません。"
+        else:
+            description = ""
+            # 追加者名でソートして表示
+            sorted_items = sorted(filtered_items, key=lambda x: x.get('追加者', ''))
+            for item in sorted_items:
+                author = item.get('追加者', '不明')
+                level = item.get('レベル', 'N/A')
+                description += f"所持者: {author} \t Lv. {level}\n"
+            embed.description = description
+            
+        await ctx.respond(embed=embed)
+
+    except Exception as e:
+        await ctx.respond(f"検索中にエラーが発生しました: {e}", ephemeral=True)
+
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
