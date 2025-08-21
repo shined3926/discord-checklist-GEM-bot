@@ -16,16 +16,27 @@ spreadsheet = None
 worksheet = None
 CATEGORIES = []
 try:
-    gc = gspread.service_account(filename="credentials.json")
+    # 環境変数から認証情報を文字列として取得
+    creds_json_str = os.getenv("GCP_CREDENTIALS_JSON")
+    if not creds_json_str:
+        raise ValueError("環境変数 GCP_CREDENTIALS_JSON が設定されていません。")
+    
+    # 文字列を辞書に変換
+    creds_dict = json.loads(creds_json_str)
+    # ファイルではなく辞書を使って認証
+    gc = gspread.service_account_from_dict(creds_dict)
+    
     spreadsheet = gc.open(SPREADSHEET_NAME)
     worksheet = spreadsheet.worksheet("BOT書き込み用")
     print("スプレッドシート「BOT書き込み用」への接続に成功しました。")
     
+    # キャラクターリストをスプレッドシートから読み込む
     char_worksheet = spreadsheet.worksheet("キャラクターリスト")
     all_names = char_worksheet.col_values(1)
     if len(all_names) > 1:
         CATEGORIES = all_names[1:]
     print(f"{len(CATEGORIES)} 件のキャラクターをスプレッドシートから読み込みました。")
+
 except Exception as e:
     print(f"スプレッドシートへの接続・読み込み中にエラーが発生しました: {e}")
 # --------------------------------
@@ -168,3 +179,4 @@ async def my_list(ctx):
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
