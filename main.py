@@ -51,16 +51,36 @@ def create_checklist_embed(all_items):
     
     if not all_items:
         embed.description = "まだ誰もキャラクターを登録していません。"
-    else:
-        description = ""
-        sorted_items = sorted(all_items, key=lambda x: x.get('キャラクター名', ''))
-        for item in sorted_items:
-            author = item.get('追加者', '不明')
-            level = item.get('レベル', 'N/A')
-            char_name = item.get('キャラクター名', '不明')
-            description += f"{char_name}: Lv. {level} (追加者: {author})\n"
-        embed.description = description
-    return embed
+        return embed
+
+    # --- ↓↓↓ ここからが新しいフォーマット処理 ↓↓↓ ---
+    
+    # 1. キャラクター名でデータをグループ化する
+    grouped_data = {}
+    for item in all_items:
+        char_name = item.get('キャラクター名', '不明')
+        if char_name not in grouped_data:
+            grouped_data[char_name] = []
+        grouped_data[char_name].append(item)
+    
+    # 2. キャラクター名のアルファベット順（または50音順）にソートする
+    sorted_char_names = sorted(grouped_data.keys())
+    
+    # 3. フォーマットされた文字列を組み立てる
+    description = ""
+    for char_name in sorted_char_names:
+        description += f"**・{char_name}**\n" # キャラクター名を太字で表示
+        
+        # そのキャラクターの所持者リストを名前順にソート
+        holders = sorted(grouped_data[char_name], key=lambda x: x.get('追加者', ''))
+        
+        for holder in holders:
+            author = holder.get('追加者', '不明')
+            level = holder.get('レベル', 'N/A')
+            # 箇条書きでインデントをつけて表示
+            description += f"　所持者: {author} \t Lv. {level}\n"
+            
+    embed.description = description
 
 # --- 一括更新用Modal & View ---
 class BulkUpdateModal(Modal):
@@ -179,4 +199,5 @@ async def my_list(ctx):
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
