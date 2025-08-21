@@ -5,7 +5,6 @@ import gspread
 import os
 from dotenv import load_dotenv
 import datetime
-import pytz
 
 # --- 設定項目 ---
 load_dotenv()
@@ -338,6 +337,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
