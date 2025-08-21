@@ -201,6 +201,7 @@ class ChecklistView(View):
 async def on_ready():
     print(f"{bot.user}としてログインしました")
     bot.add_view(ChecklistView())
+    bot.add_view(GroupSelectionView())
 
 @bot.slash_command(description="共有チェックリストを作成します。", guild_ids=GUILD_IDS)
 async def checklist(ctx):
@@ -262,4 +263,5 @@ async def my_list(ctx):
 
 # .envファイルからトークンを読み込んでBotを起動
 load_dotenv()
+
 bot.run(os.getenv("DISCORD_TOKEN"))
