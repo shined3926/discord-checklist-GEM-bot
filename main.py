@@ -299,9 +299,32 @@ async def search(
     except Exception as e:
         await ctx.respond(f"検索中にエラーが発生しました: {e}", ephemeral=True)
 
+# コマンドが間違ったチャンネルで使われたときのための、カスタムエラーを定義
+class WrongChannelError(discord.CheckFailure):
+    pass
+
+@bot.before_invoke
+async def check_channel(ctx: discord.ApplicationContext):
+    """全てのコマンドの実行前に呼び出される関数"""
+    # .envで指定されたチャンネルIDと、コマンドが実行されたチャンネルIDを比較
+    if ctx.channel.id != TARGET_CHANNEL_ID:
+        # 違うチャンネルの場合、特別なエラーを発生させてコマンドの実行を止める
+        raise WrongChannelError("This command can only be used in the designated channel.")
+@bot.event
+async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
+    """コマンドの実行でエラーが発生したときに呼び出される関数"""
+    # もし発生したエラーが、先ほど定義した「WrongChannelError」だった場合
+    if isinstance(error, WrongChannelError):
+        # 利用者にだけ見えるメッセージで、エラー内容を伝える
+        await ctx.respond("このコマンドは指定されたチャンネルでのみ使用できます。", ephemeral=True)
+    else:
+        # それ以外のエラーの場合は、これまで通りログに出力する
+        raise error
+
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
