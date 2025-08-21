@@ -4,13 +4,10 @@ import json
 import gspread
 import os
 from dotenv import load_dotenv
-import datetime
 
 # --- 設定項目 ---
 load_dotenv()
 GUILD_IDS = [int(id_str) for id_str in os.getenv("GUILD_IDS", "").split(',') if id_str]
-TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", 0))
-TARGET_MESSAGE_ID = int(os.getenv("TARGET_MESSAGE_ID", 0))
 SPREADSHEET_NAME = "グラナドエスパダM 党員所持リスト"
 # ----------------
 
@@ -236,49 +233,33 @@ async def bulk_update(ctx):
     if not CATEGORIES:
         await ctx.respond("キャラクターリストがスプレッドシートから読み込めていません。", ephemeral=True)
         return
+        
+    response = await ctx.respond("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name), ephemeral=True)
+    message = await response.original_response()
 
-    # View を作成して最初の応答で一緒に渡す
-    view = GroupSelectionView(author_name=ctx.author.display_name)
-    await ctx.respond("更新したいキャラクターのグループを選択してください。", view=view, ephemeral=True)
+    view = GroupSelectionView(author_name=ctx.author.display_name, original_message=message)
+    await response.edit(view=view)
 
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
     if not spreadsheet:
-        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True)
-        return
-
+        await ctx.respond("スプレッドシートに接続できていません。", ephemeral=True); return
     try:
         all_data = worksheet.get_all_records()
         author_name = ctx.author.display_name
         my_items = [row for row in all_data if row.get('追加者') == author_name]
-
-        embed = discord.Embed(
-            title=f"{author_name}さんの登録キャラクター一覧",
-            color=discord.Color.green()
-        )
-
+        embed = discord.Embed(title=f"{author_name}さんの登録キャラクター一覧", color=discord.Color.green())
         if not my_items:
             embed.description = "あなたが登録したキャラクターは見つかりませんでした。"
         else:
+            description = ""
             sorted_items = sorted(my_items, key=lambda x: x.get('キャラクター名', ''))
-            description = "\n".join(
-                f"{item['キャラクター名']}: Lv. {item['レベル']}"
-                for item in sorted_items
-            )
+            for item in sorted_items:
+                description += f"{item['キャラクター名']}: Lv. {item['レベル']}\n"
             embed.description = description
-
         await ctx.respond(embed=embed, ephemeral=True)
-
     except Exception as e:
-        # すでに respond 済みなら followup を使う
-        try:
-            if ctx.response.is_done():
-                await ctx.followup.send(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
-            else:
-                await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
-        except Exception as inner_e:
-            print(f"[my_list error handler] Failed to send error message: {inner_e}")
-
+        await ctx.respond(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
 
 # main.py の中の /search コマンドを置き換える
 
@@ -325,7 +306,7 @@ async def search(
 # コマンドが間違ったチャンネルで使われたときのための、カスタムエラーを定義
 class WrongChannelError(discord.CheckFailure):
     pass
-    
+
 @bot.before_invoke
 async def check_channel(ctx: discord.ApplicationContext):
     """Checks if the command is used in the designated channel before execution."""
@@ -336,34 +317,23 @@ async def check_channel(ctx: discord.ApplicationContext):
         raise WrongChannelError("This command can only be used in the designated channel.")
 
 @bot.event
-async def on_application_command_error(ctx, error):
-    # ログ出力してデバッグしやすくする
-    import traceback
-    print("------ Application Command Error ------")
-    traceback.print_exception(type(error), error, error.__traceback__)
-    print("---------------------------------------")
-
-    # 既に respond 済みかどうかで分岐
-    try:
-        if ctx.response.is_done():
-            await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
-        else:
+async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
+    """Handles errors that occur during command execution."""
+    if isinstance(error, WrongChannelError):
+        await ctx.respond("This command can only be used in the designated channel.", ephemeral=True)
+    else:
+        # For other errors, log them to the console
+        print(f"An unhandled error occurred in command {ctx.command.name}: {error}")
+        # Optionally, send a generic error message to the user
+        try:
             await ctx.respond("An unexpected error occurred.", ephemeral=True)
-    except Exception as e:
-        print(f"[ErrorHandler] Failed to send error message: {e}")
+        except discord.errors.InteractionResponded:
+            # If we already responded, we can follow up
+            await ctx.followup.send("An unexpected error occurred.", ephemeral=True)
 
 # .env読み込みとBot起動
 load_dotenv()
 bot.run(os.getenv("DISCORD_TOKEN"))
-
-
-
-
-
-
-
-
-
 
 
 
