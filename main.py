@@ -366,13 +366,21 @@ async def diceroll(ctx):
 @bot.slash_command(description="指定した都道府県の今日の天気を表示します。", guild_ids=GUILD_IDS)
 async def weather(
     ctx,
-    都道府県: discord.Option(str, "天気を知りたい都道府県名を入力してください", choices=list(PREFECTURE_CODES.keys()))
+    # ↓↓↓ choices=... の部分を削除しました ↓↓↓
+    都道府県: discord.Option(str, "天気を知りたい都道府県名を入力してください")
 ):
     await ctx.defer()
     
     code = PREFECTURE_CODES.get(都道府県)
     if not code:
-        await ctx.followup.send("都道府県名が見つかりませんでした。", ephemeral=True)
+        # 「県」や「都」などを除いた名前でも検索できるようにする
+        for key in PREFECTURE_CODES.keys():
+            if 都道府県 in key:
+                code = PREFECTURE_CODES[key]
+                break
+
+    if not code:
+        await ctx.followup.send(f"「{都道府県}」が見つかりませんでした。都道府県名を正しく入力してください。", ephemeral=True)
         return
         
     try:
@@ -382,33 +390,28 @@ async def weather(
         response.raise_for_status()
         data = response.json()
         
-        # 必要な情報を抽出
         publishing_office = data[0]['publishingOffice']
         report_datetime_str = data[0]['reportDatetime']
         area_name = data[0]['timeSeries'][0]['areas'][0]['area']['name']
         weather_today = data[0]['timeSeries'][0]['areas'][0]['weathers'][0]
         
-        # --- ↓↓ ここからが新しい処理 ↓↓ ---
         temp_data = None
-        # 気温データは timeSeries の2番目か3番目の要素にあることが多い
         for series in data[0]['timeSeries']:
             if 'temps' in series['areas'][0]:
                 temp_data = series['areas'][0]['temps']
                 break
         
-        temp_info = "N/A" # 気温情報がない場合のデフォルト値
+        temp_info = "（気温情報なし）"
         if temp_data and len(temp_data) >= 2:
             min_temp = temp_data[0]
             max_temp = temp_data[1]
             temp_info = f"🌡️ 最低: {min_temp}°C / 最高: {max_temp}°C"
-        # --- ↑↑ 新しい処理ここまで ↑↑ ---
         
         report_datetime = datetime.datetime.fromisoformat(report_datetime_str)
         report_time_formatted = report_datetime.strftime('%Y年%m月%d日 %H:%M')
         
         embed = discord.Embed(
             title=f"🗾 {area_name}の天気予報",
-            # ↓↓ description に気温情報を追加 ↓↓
             description=f"**{weather_today}**\n{temp_info}",
             color=discord.Color.blue()
         )
@@ -418,7 +421,7 @@ async def weather(
 
     except Exception as e:
         await ctx.followup.send(f"天気情報の取得中にエラーが発生しました: {e}", ephemeral=True)
-
+        
 @bot.event
 async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
     response_message = "コマンド実行中に予期せぬエラーが発生しました。管理者にご確認ください。"
@@ -438,6 +441,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
