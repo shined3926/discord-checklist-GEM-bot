@@ -228,6 +228,7 @@ class ChecklistView(View):
         return True
 
 # --- FB時間通知機能 ---
+JST = pytz.timezone('Asia/Tokyo')
 def calculate_next_fb(base_time_str: str, interval_hours: int) -> datetime.datetime:
     """次のFB時間を計算する関数"""
     now = datetime.datetime.now(JST)
@@ -355,6 +356,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
