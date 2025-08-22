@@ -156,10 +156,10 @@ class GroupSelectionView(View):
         self.update_buttons()
 
     def update_buttons(self):
-        """現在のページに基づいてボタンを再描画する"""
+        """現在のページに基づいてボタンを再描画します"""
         self.clear_items()
 
-        # 現在のページのグループボタンを追加
+        # 現在のページのグループボタンを追加します
         start_index = self.current_page * 4
         end_index = start_index + 4
         
@@ -170,15 +170,12 @@ class GroupSelectionView(View):
                 custom_id=f"group_select_{start_index + i}"
             ))
 
-        # ページネーションボタンを追加
-        # ↓↓↓ ★ここのロジックを最終版に修正しました★ ↓↓↓
-        last_row = self.children[-1].row if self.children else 0
-
+        # ページ送りボタンを一番下の行（4番目の行）に追加します
         if self.current_page > 0:
-            self.add_item(Button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", row=last_row + 1))
+            self.add_item(Button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", row=4))
         
         if self.current_page < self.total_pages - 1:
-            self.add_item(Button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page", row=last_row + 1))
+            self.add_item(Button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page", row=4))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         custom_id = interaction.data.get("custom_id")
@@ -351,6 +348,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
