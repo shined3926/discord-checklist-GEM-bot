@@ -6,6 +6,8 @@ import os
 from dotenv import load_dotenv
 import datetime
 import pytz
+import random
+import requests
 
 # --- 設定項目 ---
 load_dotenv()
@@ -36,6 +38,24 @@ try:
 except Exception as e:
     print(f"スプレッドシートへの接続・読み込み中にエラーが発生しました: {e}")
 # --------------------------------
+
+# --- 天気予報機能 ---
+# 気象庁APIで定義されている都道府県コード
+PREFECTURE_CODES = {
+    "北海道": "016000", "青森": "020000", "岩手": "030000", "宮城": "040000",
+    "秋田": "050000", "山形": "060000", "福島": "070000", "茨城": "080000",
+    "栃木": "090000", "群馬": "100000", "埼玉": "110000", "千葉": "120000",
+    "東京": "130000", "神奈川": "140000", "新潟": "150000", "富山": "160000",
+    "石川": "170000", "福井": "180000", "山梨": "190000", "長野": "200000",
+    "岐阜": "210000", "静岡": "220000", "愛知": "230000", "三重": "240000",
+    "滋賀": "250000", "京都": "260000", "大阪": "270000", "兵庫": "280000",
+    "奈良": "290000", "和歌山": "300000", "鳥取": "310000", "島根": "320000",
+    "岡山": "330000", "広島": "340000", "山口": "350000", "徳島": "360000",
+    "香川": "370000", "愛媛": "380000", "高知": "390000", "福岡": "400000",
+    "佐賀": "410000", "長崎": "420000", "熊本": "430000", "大分": "440000",
+    "宮崎": "450000", "鹿児島": "460100", "沖縄": "471000"
+}
+
 
 MODAL_GROUP_SIZE = 5
 bot = discord.Bot()
@@ -337,6 +357,68 @@ async def oshu_fb(ctx):
     next_fb_time = calculate_next_fb("15:00", 21)
     await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
 
+@bot.slash_command(description="ダイスを振り、0から100までの数字をランダムに選びます。", guild_ids=GUILD_IDS)
+async def diceroll(ctx):
+    # 0から100までの整数をランダムに選ぶ
+    result = random.randint(0, 100)
+    await ctx.respond(f"🎲 ダイスの結果は **{result}** でした！")
+
+@bot.slash_command(description="指定した都道府県の今日の天気を表示します。", guild_ids=GUILD_IDS)
+async def weather(
+    ctx,
+    都道府県: discord.Option(str, "天気を知りたい都道府県名を入力してください", choices=list(PREFECTURE_CODES.keys()))
+):
+    await ctx.defer()
+    
+    code = PREFECTURE_CODES.get(都道府県)
+    if not code:
+        await ctx.followup.send("都道府県名が見つかりませんでした。", ephemeral=True)
+        return
+        
+    try:
+        # 気象庁の天気予報APIにリクエストを送信
+        url = f"https://www.jma.go.jp/bosai/forecast/data/forecast/{code}.json"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        
+        # 必要な情報を抽出
+        publishing_office = data[0]['publishingOffice']
+        report_datetime_str = data[0]['reportDatetime']
+        area_name = data[0]['timeSeries'][0]['areas'][0]['area']['name']
+        weather_today = data[0]['timeSeries'][0]['areas'][0]['weathers'][0]
+        
+        # --- ↓↓ ここからが新しい処理 ↓↓ ---
+        temp_data = None
+        # 気温データは timeSeries の2番目か3番目の要素にあることが多い
+        for series in data[0]['timeSeries']:
+            if 'temps' in series['areas'][0]:
+                temp_data = series['areas'][0]['temps']
+                break
+        
+        temp_info = "N/A" # 気温情報がない場合のデフォルト値
+        if temp_data and len(temp_data) >= 2:
+            min_temp = temp_data[0]
+            max_temp = temp_data[1]
+            temp_info = f"🌡️ 最低: {min_temp}°C / 最高: {max_temp}°C"
+        # --- ↑↑ 新しい処理ここまで ↑↑ ---
+        
+        report_datetime = datetime.datetime.fromisoformat(report_datetime_str)
+        report_time_formatted = report_datetime.strftime('%Y年%m月%d日 %H:%M')
+        
+        embed = discord.Embed(
+            title=f"🗾 {area_name}の天気予報",
+            # ↓↓ description に気温情報を追加 ↓↓
+            description=f"**{weather_today}**\n{temp_info}",
+            color=discord.Color.blue()
+        )
+        embed.set_footer(text=f"{publishing_office}発表 | {report_time_formatted}")
+        
+        await ctx.followup.send(embed=embed)
+
+    except Exception as e:
+        await ctx.followup.send(f"天気情報の取得中にエラーが発生しました: {e}", ephemeral=True)
+
 @bot.event
 async def on_application_command_error(ctx: discord.ApplicationContext, error: discord.DiscordException):
     response_message = "コマンド実行中に予期せぬエラーが発生しました。管理者にご確認ください。"
@@ -356,6 +438,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
