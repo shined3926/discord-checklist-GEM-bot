@@ -168,12 +168,12 @@ class GroupSelectionView(View):
                 custom_id=f"group_select_{start_index + i}"
             ))
 
-        row = self.children[-1].row if self.children else 0
+        last_row = self.children[-1].row if self.children else 0
         if self.current_page > 0:
-            self.add_item(Button(label="◀️ Previous", style=discord.ButtonStyle.primary, custom_id="prev_page", row=row+1))
+            self.add_item(Button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", row=row+1))
         
         if self.current_page < self.total_pages - 1:
-            self.add_item(Button(label="Next ▶️", style=discord.ButtonStyle.primary, custom_id="next_page", row=row+1))
+            self.add_item(Button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page", row=row+1))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         custom_id = interaction.data.get("custom_id")
@@ -342,6 +342,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
