@@ -213,7 +213,7 @@ async def checklist(ctx):
     try:
         all_items = worksheet.get_all_records()
         embed = create_checklist_embed(all_items)
-        await ctx.followup.send(embed=embed, view=ChecklistView())
+        await ctx.followup.send(embed=embed)
     except Exception as e:
         await ctx.followup.send(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
 
@@ -296,4 +296,5 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
