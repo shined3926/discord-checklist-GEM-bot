@@ -228,17 +228,23 @@ class ChecklistView(View):
         return True
 
 # --- FB時間通知機能 ---
-JST = pytz.timezone('Asia/Tokyo')
 def calculate_next_fb(base_time_str: str, interval_hours: int) -> datetime.datetime:
+    """次のFB時間を計算する関数"""
     now = datetime.datetime.now(JST)
+    # 今日の日付で基準時間を作成
     today_base_time = JST.localize(datetime.datetime.strptime(f"{now.strftime('%Y-%m-%d')} {base_time_str}", "%Y-%m-%d %H:%M"))
+    # 基準時間から現在時刻までの経過時間を秒単位で計算
     time_diff_seconds = (now - today_base_time).total_seconds()
     interval_seconds = interval_hours * 3600
-    cycles_ago = time_diff_seconds / interval_seconds
-    most_recent_base_time = today_base_time + datetime.timedelta(seconds=int(cycles_ago) * interval_seconds)
-    if most_recent_base_time > now:
-        most_recent_base_time -= datetime.timedelta(seconds=interval_seconds)
-    return most_recent_base_time + datetime.timedelta(seconds=interval_seconds)
+    # 基準時間が未来にあるか、過去にあるかに基づいて次の時間を計算
+    if time_diff_seconds < 0:
+        # 今日の基準時間がまだ来ていない場合、それが次の時間
+        return today_base_time
+    else:
+        # 今日の基準時間が既に過ぎている場合
+        cycles_passed = time_diff_seconds // interval_seconds
+        next_time = today_base_time + datetime.timedelta(seconds=(cycles_passed + 1) * interval_seconds)
+        return next_time
 
 # --- コマンド & イベント定義 ---
 @bot.event
@@ -321,12 +327,13 @@ async def search(ctx, キャラクター名: discord.Option(str, "検索した�
 
 @bot.slash_command(description="次のコインブラFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def coinbra_fb(ctx):
-    next_fb_time = calculate_next_fb("20:00", 10)
+    # 基準を本日の2時、10時間周期に修正
+    next_fb_time = calculate_next_fb("02:00", 10)
     await ctx.respond(f"次のコインブラFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
-
 @bot.slash_command(description="次のオーシュFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def oshu_fb(ctx):
-    next_fb_time = calculate_next_fb("22:00", 21)
+    # 基準を本日の15時、21時間周期に修正
+    next_fb_time = calculate_next_fb("15:00", 21)
     await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
 
 @bot.event
@@ -348,6 +355,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
