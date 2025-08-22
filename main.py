@@ -351,7 +351,7 @@ async def summary(
     ctx,
     キャラクター名: discord.Option(str, "集計したいキャラクターの名前を入力してください")
 ):
-    await ctx.defer()
+    await ctx.defer(ephemeral=True)
     
     if not spreadsheet:
         await ctx.followup.send("スプレッドシートに接続できていません。", ephemeral=True)
@@ -503,6 +503,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
