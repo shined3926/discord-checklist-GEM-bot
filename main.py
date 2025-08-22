@@ -346,6 +346,68 @@ async def search(ctx, キャラクター名: discord.Option(str, "検索した�
     except Exception as e:
         await ctx.followup.send(f"検索中にエラーが発生: {e}", ephemeral=True)
 
+@bot.slash_command(description="指定したキャラクターの所持状況やレベルを集計・分析します。", guild_ids=GUILD_IDS)
+async def summary(
+    ctx,
+    キャラクター名: discord.Option(str, "集計したいキャラクターの名前を入力してください")
+):
+    await ctx.defer()
+    
+    if not spreadsheet:
+        await ctx.followup.send("スプレッドシートに接続できていません。", ephemeral=True)
+        return
+        
+    try:
+        # スプレッドシートから全データを取得
+        all_data = worksheet.get_all_records()
+
+        # 入力されたキャラクター名でデータを絞り込む
+        filtered_items = [row for row in all_data if row.get('キャラクター名') == キャラクター名]
+        
+        embed = discord.Embed(
+            title=f"📊 「{キャラクター名}」の集計結果",
+            color=discord.Color.gold()
+        )
+
+        if not filtered_items:
+            embed.description = "このキャラクターを登録している人はいません。"
+        else:
+            # --- ↓↓ ここからが集計処理 ↓↓ ---
+            
+            # 1. 所持者数を計算
+            owner_count = len(filtered_items)
+            
+            # 2. 最高レベルとその所持者を探す
+            max_level = 0
+            max_level_holder = ""
+            total_level = 0
+            
+            for item in filtered_items:
+                try:
+                    # レベルを数値に変換（変換できない場合は無視）
+                    level = int(item.get('レベル', 0))
+                    total_level += level
+                    if level > max_level:
+                        max_level = level
+                        max_level_holder = item.get('追加者', '不明')
+                except (ValueError, TypeError):
+                    continue # レベルが数値でないデータは無視
+            
+            # 3. 平均レベルを計算
+            average_level = total_level / owner_count if owner_count > 0 else 0
+            
+            # --- ↑↑ 集計処理ここまで ↑↑ ---
+            
+            # 結果をEmbedに追加
+            embed.add_field(name="所持者数", value=f"{owner_count} 人", inline=False)
+            embed.add_field(name="最高レベル", value=f"Lv. {max_level} (所持者: {max_level_holder})", inline=False)
+            embed.add_field(name="平均レベル", value=f"約 Lv. {average_level:.1f}", inline=False) # 小数点以下1桁まで表示
+        
+        await ctx.followup.send(embed=embed)
+
+    except Exception as e:
+        await ctx.followup.send(f"集計中にエラーが発生しました: {e}", ephemeral=True)
+
 @bot.slash_command(description="次のコインブラFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def coinbra_fb(ctx):
     # 基準を本日の2時、10時間周期に修正
@@ -441,6 +503,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
