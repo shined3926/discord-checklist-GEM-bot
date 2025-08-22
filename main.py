@@ -205,9 +205,9 @@ async def check_channel(ctx: discord.ApplicationContext):
     if TARGET_CHANNEL_ID != 0 and ctx.channel.id != TARGET_CHANNEL_ID:
         raise WrongChannelError()
 
-@bot.slash_command(description="スプレッドシートの最新状況をチャンネルに表示します。", guild_ids=GUILD_IDS)
+@bot.slash_command(description="スプレッドシートの最新状況を自分だけに表示します。", guild_ids=GUILD_IDS)
 async def checklist(ctx):
-    await ctx.defer()
+    await ctx.defer(ephemeral=True)
     if not spreadsheet:
         await ctx.followup.send("スプレッドシートに接続できていません。", ephemeral=True); return
     try:
@@ -296,3 +296,4 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
