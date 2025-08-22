@@ -146,55 +146,46 @@ class BulkUpdateModal(Modal):
             await interaction.response.send_message(f"スプレッドシート更新中にエラーが発生: {e}", ephemeral=True)
 
 class GroupSelectionView(View):
-    def __init__(self, author_name: str):
-        super().__init__(timeout=180)
-        self.author_name = author_name
+    def __init__(self): # author_name is removed from here
+        super().__init__(timeout=None) # Set to persistent
         self.current_page = 0
         
-        # カテゴリーをチャンクに分割
         self.category_chunks = [CATEGORIES[i:i + MODAL_GROUP_SIZE] for i in range(0, len(CATEGORIES), MODAL_GROUP_SIZE)]
-        self.total_pages = -(-len(self.category_chunks) // 4) # ページ数を計算 (4グループごと)
+        self.total_pages = -(-len(self.category_chunks) // 4)
 
         self.update_buttons()
 
     def update_buttons(self):
-        """現在のページに基づいてボタンを再描画する"""
-        self.clear_items() # 現在のボタンをすべて削除
-
-        # 現在のページのグループボタンを追加 (1ページあたり4グループまで)
+        """Redraws buttons based on the current page."""
+        self.clear_items()
         start_index = self.current_page * 4
         end_index = start_index + 4
         
         for i, chunk in enumerate(self.category_chunks[start_index:end_index]):
             self.add_item(Button(
-                label=f"グループ {start_index + i + 1} ({chunk[0]}～)",
+                label=f"Group {start_index + i + 1} ({chunk[0]}～)",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"group_select_{start_index + i}"
             ))
 
-        # ページネーションボタンを追加
-        row = self.children[-1].row if self.children else 0 # 最後のボタンと同じ行か次の行に配置
+        row = self.children[-1].row if self.children else 0
         if self.current_page > 0:
-            self.add_item(Button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", row=row+1))
+            self.add_item(Button(label="◀️ Previous", style=discord.ButtonStyle.primary, custom_id="prev_page", row=row+1))
         
         if self.current_page < self.total_pages - 1:
-            self.add_item(Button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page", row=row+1))
+            self.add_item(Button(label="Next ▶️", style=discord.ButtonStyle.primary, custom_id="next_page", row=row+1))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         custom_id = interaction.data.get("custom_id")
 
-        if custom_id == "prev_page":
-            if self.current_page > 0:
+        if custom_id == "prev_page" or custom_id == "next_page":
+            if custom_id == "prev_page" and self.current_page > 0:
                 self.current_page -= 1
-                self.update_buttons()
-                await interaction.response.edit_message(view=self)
-            return False # Interactionをここで終了
-
-        if custom_id == "next_page":
-            if self.current_page < self.total_pages - 1:
+            elif custom_id == "next_page" and self.current_page < self.total_pages - 1:
                 self.current_page += 1
-                self.update_buttons()
-                await interaction.response.edit_message(view=self)
+            
+            self.update_buttons()
+            await interaction.response.edit_message(view=self)
             return False
 
         if custom_id and custom_id.startswith("group_select"):
@@ -203,7 +194,7 @@ class GroupSelectionView(View):
             
             modal = BulkUpdateModal(
                 characters_to_update=selected_chunk,
-                author_name=self.author_name,
+                author_name=interaction.user.display_name, # Get author name from the interaction
             )
             await interaction.response.send_modal(modal)
             return False
@@ -248,6 +239,7 @@ def calculate_next_fb(base_time_str: str, interval_hours: int) -> datetime.datet
 async def on_ready():
     print(f"{bot.user}としてログインしました")
     bot.add_view(ChecklistView())
+    bot.add_view(GroupSelectionView()) 
 
 class WrongChannelError(discord.CheckFailure): pass
 
@@ -272,10 +264,11 @@ async def checklist(ctx):
 async def bulk_update(ctx):
     await ctx.defer(ephemeral=True)
     if not CATEGORIES:
-        await ctx.followup.send("キャラクターリストが読み込めていません。", ephemeral=True); return
+        await ctx.followup.send("キャラクターリストが読み込めていません。", ephemeral=True)
+        return
     
-    # author_nameをViewに渡すように修正
-    await ctx.followup.send("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView(author_name=ctx.author.display_name))
+    # The view is now simpler to call
+    await ctx.followup.send("更新したいキャラクターのグループを選択してください。", view=GroupSelectionView())
 
 @bot.slash_command(description="自分が登録した内容をスプレッドシートから表示します。", guild_ids=GUILD_IDS)
 async def my_list(ctx):
@@ -349,6 +342,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
