@@ -48,7 +48,7 @@ try:
     if spreadsheet and info_spreadsheet_name:
         info_spreadsheet = gc.open(info_spreadsheet_name)
         # Use the specified sheet name
-        info_worksheet = info_spreadsheet.worksheet("キャラクター一覧")
+        info_worksheet = info_spreadsheet.worksheet("キャラクター")
         print(f"2つ目のスプレッドシート「{info_spreadsheet_name}」への接続に成功しました。")
         
         if len(info_worksheet.col_values(1)) > 1:
@@ -435,7 +435,7 @@ async def character_info(
     await ctx.defer()
 
     if not info_worksheet:
-        await ctx.followup.send("キャラクター一覧シートに接続できていません。", ephemeral=True)
+        await ctx.followup.send("キャラクターシートに接続できていません。", ephemeral=True)
         return
 
     try:
@@ -563,6 +563,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
