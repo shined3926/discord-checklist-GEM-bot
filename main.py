@@ -39,6 +39,25 @@ except Exception as e:
     print(f"スプレッドシートへの接続・読み込み中にエラーが発生しました: {e}")
 # --------------------------------
 
+# --- 2つ目のスプレッドシートへの接続 ---
+info_spreadsheet = None
+info_worksheet = None
+CHAR_INFO_CATEGORIES = []
+try:
+    info_spreadsheet_name = os.getenv("INFO_SPREADSHEET_NAME")
+    if spreadsheet and info_spreadsheet_name:
+        info_spreadsheet = gc.open(info_spreadsheet_name)
+        # Use the specified sheet name
+        info_worksheet = info_spreadsheet.worksheet("キャラクター一覧")
+        print(f"2つ目のスプレッドシート「{info_spreadsheet_name}」への接続に成功しました。")
+        
+        if len(info_worksheet.col_values(1)) > 1:
+            CHAR_INFO_CATEGORIES = info_worksheet.col_values(1)[1:]
+
+except Exception as e:
+    print(f"2つ目のスプレッドシートへの接続中にエラー: {e}")
+# ------------------------------------
+
 # --- 天気予報機能 ---
 # 気象庁APIで定義されている都道府県コード
 PREFECTURE_CODES = {
@@ -408,6 +427,47 @@ async def summary(
     except Exception as e:
         await ctx.followup.send(f"集計中にエラーが発生しました: {e}", ephemeral=True)
 
+@bot.slash_command(description="指定したキャラクターの評価情報を表示します。", guild_ids=GUILD_IDS)
+async def character_info(
+    ctx,
+    キャラクター名: discord.Option(str, "評価を知りたいキャラクターの名前", choices=CHAR_INFO_CATEGORIES)
+):
+    await ctx.defer()
+
+    if not info_worksheet:
+        await ctx.followup.send("キャラクター一覧シートに接続できていません。", ephemeral=True)
+        return
+
+    try:
+        all_char_data = info_worksheet.get_all_records()
+        
+        char_data = None
+        for row in all_char_data:
+            if row.get("キャラクター名") == キャラクター名:
+                char_data = row
+                break
+
+        if not char_data:
+            await ctx.followup.send("そのキャラクターの情報は見つかりませんでした。")
+            return
+            
+        embed = discord.Embed(
+            title=f"📝 「{キャラクター名}」のキャラクター情報",
+            description=char_data.get("評価内容", "評価内容は未記載です。"),
+            color=discord.Color.teal()
+        )
+        embed.add_field(name="育成優先度", value=f"**{char_data.get('育成優先度', 'N/A')}**", inline=True)
+        embed.add_field(name="スタンス開放優先度", value=f"**{char_data.get('スタンス開放優先度', 'N/A')}**", inline=True)
+        embed.add_field(name="英雄召喚優先度", value=f"**{char_data.get('英雄召喚チケット優先度', 'N/A')}**", inline=True)
+        
+        stances = f"・{char_data.get('スタンス1', '---')}\n・{char_data.get('スタンス2', '---')}"
+        embed.add_field(name="習得スタンス", value=stances, inline=False)
+        
+        await ctx.followup.send(embed=embed)
+
+    except Exception as e:
+        await ctx.followup.send(f"情報取得中にエラーが発生しました: {e}", ephemeral=True)
+
 @bot.slash_command(description="次のコインブラFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def coinbra_fb(ctx):
     # 基準を本日の2時、10時間周期に修正
@@ -503,6 +563,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
