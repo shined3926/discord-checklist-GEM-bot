@@ -361,7 +361,7 @@ async def my_list(ctx):
 
 @bot.slash_command(description="指定したキャラクターの所持者とレベルの一覧を表示します。", guild_ids=GUILD_IDS)
 async def search(ctx, キャラクター名: discord.Option(str, "検索したいキャラクターの名前を入力してください")):
-    await ctx.defer()
+    await ctx.defer(ephemeral=True)
     if not spreadsheet:
         await ctx.followup.send("スプレッドシートに接続できていません。", ephemeral=True); return
     try:
@@ -491,7 +491,7 @@ async def weather(
     # ↓↓↓ choices=... の部分を削除しました ↓↓↓
     都道府県: discord.Option(str, "天気を知りたい都道府県名を入力してください")
 ):
-    await ctx.defer()
+    await ctx.defer(ephemeral=True)
     
     code = PREFECTURE_CODES.get(都道府県)
     if not code:
@@ -563,6 +563,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
