@@ -13,49 +13,42 @@ import requests
 load_dotenv()
 GUILD_IDS = [int(id_str) for id_str in os.getenv("GUILD_IDS", "").split(',') if id_str]
 SPREADSHEET_NAME = "グラナドエスパダM 党員所持リスト"
+INFO_SPREADSHEET_NAME = os.getenv("INFO_SPREADSHEET_NAME", "グラナドエスパダM_BOT用DB") # .envから読み込む
 TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", 0))
 # ----------------
+
 
 # --- Googleスプレッドシート連携 ---
 spreadsheet = None
 worksheet = None
+info_worksheet = None
 CATEGORIES = []
+CHAR_INFO_CATEGORIES = []
 try:
     creds_json_str = os.getenv("GCP_CREDENTIALS_JSON")
-    if not creds_json_str:
-        raise ValueError("環境変数 GCP_CREDENTIALS_JSON が設定されていません。")
+    if not creds_json_str: raise ValueError("環境変数 GCP_CREDENTIALS_JSON が設定されていません。")
     creds_dict = json.loads(creds_json_str)
     gc = gspread.service_account_from_dict(creds_dict)
+    
+    # 1つ目のシート
     spreadsheet = gc.open(SPREADSHEET_NAME)
     worksheet = spreadsheet.worksheet("BOT書き込み用")
     print("スプレッドシート「BOT書き込み用」への接続に成功しました。")
-    
     char_worksheet = spreadsheet.worksheet("キャラクターリスト")
     all_names = char_worksheet.col_values(1)
-    if all_names:
-        CATEGORIES = all_names
+    if all_names: CATEGORIES = all_names
     print(f"{len(CATEGORIES)} 件のキャラクターをスプレッドシートから読み込みました。")
-except Exception as e:
-    print(f"スプレッドシートへの接続・読み込み中にエラーが発生しました: {e}")
-# --------------------------------
 
-# --- 2つ目のスプレッドシートへの接続 ---
-info_spreadsheet = None
-info_worksheet = None
-CHAR_INFO_CATEGORIES = []
-try:
-    info_spreadsheet_name = os.getenv("INFO_SPREADSHEET_NAME")
-    if spreadsheet and info_spreadsheet_name:
-        info_spreadsheet = gc.open(info_spreadsheet_name)
-        # Use the specified sheet name
-        info_worksheet = info_spreadsheet.worksheet("キャラクター")
-        print(f"2つ目のスプレッドシート「{info_spreadsheet_name}」への接続に成功しました。")
-        
+    # 2つ目のシート
+    if INFO_SPREADSHEET_NAME:
+        info_spreadsheet = gc.open(INFO_SPREADSHEET_NAME)
+        info_worksheet = info_spreadsheet.worksheet("キャラクター一覧")
+        print(f"2つ目のスプレッドシート「{INFO_SPREADSHEET_NAME}」への接続に成功しました。")
         if len(info_worksheet.col_values(1)) > 1:
             CHAR_INFO_CATEGORIES = info_worksheet.col_values(1)[1:]
 
 except Exception as e:
-    print(f"2つ目のスプレッドシートへの接続中にエラー: {e}")
+    print(f"スプレッドシートへの接続・読み込み中にエラーが発生しました: {e}")
 # ------------------------------------
 
 # --- 天気予報機能 ---
@@ -269,18 +262,12 @@ class ChecklistView(View):
 # --- FB時間通知機能 ---
 JST = pytz.timezone('Asia/Tokyo')
 def calculate_next_fb(base_datetime_str: str, interval_hours: int) -> datetime.datetime:
-    """指定された日時を基準に、次の時間を計算する関数"""
     now = datetime.datetime.now(JST)
-    # 文字列から基準となる日時を作成
-    base_time = JST.localize(datetime.datetime.strptime(base_datetime_str, "%Y/%m/%d %H"))
-    if base_time > now:
-        return base_time
-    # 基準日時から現在時刻までの経過時間を秒単位で計算
+    base_time = JST.localize(datetime.datetime.strptime(base_datetime_str, "%Y/%m/%d %H:%M"))
+    if base_time > now: return base_time
     time_diff_seconds = (now - base_time).total_seconds()
     interval_seconds = interval_hours * 3600
-    # 経過した周期の回数を計算
     cycles_passed = time_diff_seconds // interval_seconds
-    # 次の時間を計算
     next_time = base_time + datetime.timedelta(seconds=(cycles_passed + 1) * interval_seconds)
     return next_time
 
@@ -428,55 +415,39 @@ async def summary(
 @bot.slash_command(description="指定したキャラクターの評価情報を表示します。", guild_ids=GUILD_IDS)
 async def character_info(
     ctx,
-    キャラクター名: discord.Option(str, "評価を知りたいキャラクターの名前", choices=CHAR_INFO_CATEGORIES)
+    キャラクター名: discord.Option(str, "評価を知りたいキャラクターの名前") # choicesを削除
 ):
-    await ctx.defer(ephemeral=True)
-
+    await ctx.defer()
     if not info_worksheet:
-        await ctx.followup.send("キャラクターシートに接続できていません。", ephemeral=True)
-        return
-
+        await ctx.followup.send("キャラクター一覧シートに接続できていません。", ephemeral=True); return
     try:
         all_char_data = info_worksheet.get_all_records()
-        
         char_data = None
         for row in all_char_data:
             if row.get("キャラクター名") == キャラクター名:
-                char_data = row
-                break
-
+                char_data = row; break
         if not char_data:
-            await ctx.followup.send("そのキャラクターの情報は見つかりませんでした。")
-            return
+            await ctx.followup.send("そのキャラクターの情報は見つかりませんでした。"); return
             
-        embed = discord.Embed(
-            title=f"📝 「{キャラクター名}」のキャラクター情報",
-            description=char_data.get("評価内容", "評価内容は未記載です。"),
-            color=discord.Color.teal()
-        )
+        embed = discord.Embed(title=f"📝 「{キャラクター名}」のキャラクター情報", description=char_data.get("評価内容", "評価内容は未記載です。"), color=discord.Color.teal())
         embed.add_field(name="育成優先度", value=f"**{char_data.get('育成優先度', 'N/A')}**", inline=True)
         embed.add_field(name="スタンス開放優先度", value=f"**{char_data.get('スタンス開放優先度', 'N/A')}**", inline=True)
         embed.add_field(name="英雄召喚優先度", value=f"**{char_data.get('英雄召喚チケット優先度', 'N/A')}**", inline=True)
-        
         stances = f"・{char_data.get('スタンス1', '---')}\n・{char_data.get('スタンス2', '---')}"
         embed.add_field(name="習得スタンス", value=stances, inline=False)
-        
         await ctx.followup.send(embed=embed)
-
     except Exception as e:
         await ctx.followup.send(f"情報取得中にエラーが発生しました: {e}", ephemeral=True)
 
 @bot.slash_command(description="次のコインブラFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def coinbra_fb(ctx):
-    # 2025/08/25 04:00 を基準に10時間周期
     next_fb_time = calculate_next_fb("2025/08/25 04:00", 10)
-    await ctx.respond(f"次のコインブラFBは **{next_fb_time.strftime('%m月%d日 %H時')}** です。")
+    await ctx.respond(f"次のコインブラFBは **{next_fb_time.strftime('%m月%d日 %H時')}** です。", ephemeral=True)
 
 @bot.slash_command(description="次のオーシュFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def oshu_fb(ctx):
-    # 2025/08/25 15:00 を基準に21時間周期
     next_fb_time = calculate_next_fb("2025/08/25 15:00", 21)
-    await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時')}** です。")
+    await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時')}** です。", ephemeral=True)
     
 @bot.slash_command(description="ダイスを振り、0から100までの数字をランダムに選びます。", guild_ids=GUILD_IDS)
 async def diceroll(ctx):
@@ -562,6 +533,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
