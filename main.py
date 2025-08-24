@@ -284,6 +284,11 @@ async def dungeon_reminder():
     channel = bot.get_channel(TARGET_CHANNEL_ID)
     if not channel:
         return # チャンネルが見つからなければ何もしない
+
+    # 土曜日(5) または 日曜日(6) の 19:00
+    if (weekday == 5 or weekday == 6) and hour == 19 and minute == 0:
+        await channel.send("【党の指令リマインダー】\n党の指令を獲得していない方は忘れずに取得してください。\n取得方法：党 → 指令")
+        
     # 金曜日(4) または 土曜日(5) の 20:00
     if (weekday == 4 or weekday == 5) and hour == 20 and minute == 0:
         await channel.send("【定期ダンジョン通知】\n日曜日21時から定期開催の党ダンジョンがあります！")
@@ -562,6 +567,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
