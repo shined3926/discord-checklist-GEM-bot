@@ -44,7 +44,7 @@ try:
     # 2つ目のシート
     if INFO_SPREADSHEET_NAME:
         info_spreadsheet = gc.open(INFO_SPREADSHEET_NAME)
-        info_worksheet = info_spreadsheet.worksheet("キャラクター一覧")
+        info_worksheet = info_spreadsheet.worksheet("キャラクター")
         print(f"2つ目のスプレッドシート「{INFO_SPREADSHEET_NAME}」への接続に成功しました。")
         if len(info_worksheet.col_values(1)) > 1:
             CHAR_INFO_CATEGORIES = info_worksheet.col_values(1)[1:]
@@ -563,6 +563,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
