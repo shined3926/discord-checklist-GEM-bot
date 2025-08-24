@@ -446,7 +446,7 @@ async def coinbra_fb(ctx):
 
 @bot.slash_command(description="次のオーシュFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def oshu_fb(ctx):
-    next_fb_time = calculate_next_fb("2025/08/25 15:00", 21)
+    next_fb_time = calculate_next_fb("2025/08/25 10:00", 21)
     await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時')}** です。", ephemeral=True)
     
 @bot.slash_command(description="ダイスを振り、0から100までの数字をランダムに選びます。", guild_ids=GUILD_IDS)
@@ -533,6 +533,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
