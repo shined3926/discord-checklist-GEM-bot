@@ -10,7 +10,6 @@ import random
 import requests
 from discord.ext import tasks
 
-
 # --- 設定項目 ---
 load_dotenv()
 GUILD_IDS = [int(id_str) for id_str in os.getenv("GUILD_IDS", "").split(',') if id_str]
@@ -563,6 +562,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
