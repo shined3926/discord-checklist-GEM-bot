@@ -268,23 +268,21 @@ class ChecklistView(View):
 
 # --- FB時間通知機能 ---
 JST = pytz.timezone('Asia/Tokyo')
-def calculate_next_fb(base_time_str: str, interval_hours: int) -> datetime.datetime:
-    """次のFB時間を計算する関数"""
+def calculate_next_fb(base_datetime_str: str, interval_hours: int) -> datetime.datetime:
+    """指定された日時を基準に、次の時間を計算する関数"""
     now = datetime.datetime.now(JST)
-    # 今日の日付で基準時間を作成
-    today_base_time = JST.localize(datetime.datetime.strptime(f"{now.strftime('%Y-%m-%d')} {base_time_str}", "%Y-%m-%d %H:%M"))
-    # 基準時間から現在時刻までの経過時間を秒単位で計算
-    time_diff_seconds = (now - today_base_time).total_seconds()
+    # 文字列から基準となる日時を作成
+    base_time = JST.localize(datetime.datetime.strptime(base_datetime_str, "%Y/%m/%d %H"))
+    if base_time > now:
+        return base_time
+    # 基準日時から現在時刻までの経過時間を秒単位で計算
+    time_diff_seconds = (now - base_time).total_seconds()
     interval_seconds = interval_hours * 3600
-    # 基準時間が未来にあるか、過去にあるかに基づいて次の時間を計算
-    if time_diff_seconds < 0:
-        # 今日の基準時間がまだ来ていない場合、それが次の時間
-        return today_base_time
-    else:
-        # 今日の基準時間が既に過ぎている場合
-        cycles_passed = time_diff_seconds // interval_seconds
-        next_time = today_base_time + datetime.timedelta(seconds=(cycles_passed + 1) * interval_seconds)
-        return next_time
+    # 経過した周期の回数を計算
+    cycles_passed = time_diff_seconds // interval_seconds
+    # 次の時間を計算
+    next_time = base_time + datetime.timedelta(seconds=(cycles_passed + 1) * interval_seconds)
+    return next_time
 
 # --- コマンド & イベント定義 ---
 @bot.event
@@ -470,15 +468,16 @@ async def character_info(
 
 @bot.slash_command(description="次のコインブラFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def coinbra_fb(ctx):
-    # 基準を本日の2時、10時間周期に修正
-    next_fb_time = calculate_next_fb("02:00", 10)
-    await ctx.respond(f"次のコインブラFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
+    # 2025/08/25 04:00 を基準に10時間周期
+    next_fb_time = calculate_next_fb("2025/08/25 04:00", 10)
+    await ctx.respond(f"次のコインブラFBは **{next_fb_time.strftime('%m月%d日 %H時')}** です。")
+
 @bot.slash_command(description="次のオーシュFBの時間を通知します。", guild_ids=GUILD_IDS)
 async def oshu_fb(ctx):
-    # 基準を本日の15時、21時間周期に修正
-    next_fb_time = calculate_next_fb("15:00", 21)
-    await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時%M分')}** です。")
-
+    # 2025/08/25 15:00 を基準に21時間周期
+    next_fb_time = calculate_next_fb("2025/08/25 15:00", 21)
+    await ctx.respond(f"次のオーシュFBは **{next_fb_time.strftime('%m月%d日 %H時')}** です。")
+    
 @bot.slash_command(description="ダイスを振り、0から100までの数字をランダムに選びます。", guild_ids=GUILD_IDS)
 async def diceroll(ctx):
     # 0から100までの整数をランダムに選ぶ
@@ -563,6 +562,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
