@@ -8,6 +8,8 @@ import datetime
 import pytz
 import random
 import requests
+from discord.ext import tasks
+
 
 # --- 設定項目 ---
 load_dotenv()
@@ -271,14 +273,39 @@ def calculate_next_fb(base_datetime_str: str, interval_hours: int) -> datetime.d
     next_time = base_time + datetime.timedelta(seconds=(cycles_passed + 1) * interval_seconds)
     return next_time
 
+# --- 定期ダンジョン通知機能 ---
+JST = pytz.timezone('Asia/Tokyo')
+@tasks.loop(minutes=1) # 1分ごとにこの関数を実行する
+async def dungeon_reminder():
+    now = datetime.datetime.now(JST)
+    weekday = now.weekday() # 曜日を取得 (月曜日=0, 日曜日=6)
+    hour = now.hour
+    minute = now.minute
+    # 通知を送信するチャンネルを取得
+    channel = bot.get_channel(TARGET_CHANNEL_ID)
+    if not channel:
+        return # チャンネルが見つからなければ何もしない
+    # 金曜日(4) または 土曜日(5) の 20:00
+    if (weekday == 4 or weekday == 5) and hour == 20 and minute == 0:
+        await channel.send("【定期ダンジョン通知】\n日曜日21時から定期開催の党ダンジョンがあります！")
+    # 日曜日(6) の 20:00
+    if weekday == 6 and hour == 20 and minute == 0:
+        await channel.send("【定期ダンジョン通知】\nこの後1時間後から定期開催の党ダンジョンが始まります！")
+
 # --- コマンド & イベント定義 ---
 @bot.event
 async def on_ready():
     print(f"{bot.user}としてログインしました")
+        if not dungeon_reminder.is_running():
+        dungeon_reminder.start() 
     bot.add_view(ChecklistView())
     bot.add_view(GroupSelectionView()) 
-
 class WrongChannelError(discord.CheckFailure): pass
+
+@bot.event
+async def on_close():
+    if dungeon_reminder.is_running():
+        dungeon_reminder.cancel() # Bot終了時にタスクを安全に停止
 
 @bot.before_invoke
 async def check_channel(ctx: discord.ApplicationContext):
@@ -533,6 +560,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
