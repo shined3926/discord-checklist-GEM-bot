@@ -296,10 +296,13 @@ async def dungeon_reminder():
 @bot.event
 async def on_ready():
     print(f"{bot.user}としてログインしました")
-        if not dungeon_reminder.is_running():
-        dungeon_reminder.start() 
+    if not dungeon_reminder.is_running():
+        dungeon_reminder.start() # Start the task when the bot is ready
+    
+    # These lines should also be inside the on_ready function
     bot.add_view(ChecklistView())
-    bot.add_view(GroupSelectionView()) 
+    bot.add_view(GroupSelectionView())
+    
 class WrongChannelError(discord.CheckFailure): pass
 
 @bot.event
@@ -560,6 +563,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
