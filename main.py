@@ -447,7 +447,7 @@ async def character_info(
     ctx,
     キャラクター名: discord.Option(str, "評価を知りたいキャラクターの名前") # choicesを削除
 ):
-    await ctx.defer()
+    await ctx.defer(ephemeral=True)
     if not info_worksheet:
         await ctx.followup.send("キャラクター一覧シートに接続できていません。", ephemeral=True); return
     try:
@@ -563,6 +563,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
