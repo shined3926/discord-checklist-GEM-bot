@@ -241,6 +241,56 @@ class GroupSelectionView(View):
         return True
 
 
+ITEMS_PER_PAGE = 5 # 1ページあたりに表示するキャラクター数
+
+class ChecklistPaginationView(View):
+    def __init__(self, all_items: list):
+        super().__init__(timeout=180) # 3分でボタンは無効化
+        self.all_items = all_items
+        self.current_page = 0
+        # ページ数を計算 (例: 26アイテムなら3ページ)
+        self.total_pages = -(-len(self.all_items) // ITEMS_PER_PAGE)
+        
+    async def get_page_content(self) -> discord.Embed:
+        """現在のページの内容をEmbedとして生成する"""
+        start_index = self.current_page * ITEMS_PER_PAGE
+        end_index = start_index + ITEMS_PER_PAGE
+        items_for_page = self.all_items[start_index:end_index]
+        
+        # 既存のEmbed生成関数を再利用
+        embed = create_checklist_embed(items_for_page)
+        embed.title = "共有チェックリスト" # タイトルを少し変更
+        # フッターにページ番号を追加
+        embed.set_footer(text=f"ページ {self.current_page + 1} / {self.total_pages}")
+        return embed
+
+    @discord.ui.button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page")
+    async def prev_button_callback(self, button, interaction):
+        if self.current_page > 0:
+            self.current_page -= 1
+            embed = await self.get_page_content()
+            # 前のページがなければボタンを無効化
+            self.children[0].disabled = self.current_page == 0
+            # 次のページがあればボタンを有効化
+            self.children[1].disabled = False
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.defer() # 何もせず応答
+
+    @discord.ui.button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page")
+    async def next_button_callback(self, button, interaction):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            embed = await self.get_page_content()
+            # 次のページがなければボタンを無効化
+            self.children[1].disabled = self.current_page == self.total_pages - 1
+            # 前のページボタンを有効化
+            self.children[0].disabled = False
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.defer()
+
+
 class ChecklistView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -319,15 +369,25 @@ async def check_channel(ctx: discord.ApplicationContext):
     if TARGET_CHANNEL_ID != 0 and ctx.channel.id != TARGET_CHANNEL_ID:
         raise WrongChannelError()
 
-@bot.slash_command(description="スプレッドシートの最新状況を自分だけに表示します。", guild_ids=GUILD_IDS)
+@bot.slash_command(description="スプレッドシートの最新状況をページ形式で表示します。", guild_ids=GUILD_IDS)
 async def checklist(ctx):
     await ctx.defer(ephemeral=True)
     if not spreadsheet:
         await ctx.followup.send("スプレッドシートに接続できていません。", ephemeral=True); return
     try:
         all_items = worksheet.get_all_records()
-        embed = create_checklist_embed(all_items)
-        await ctx.followup.send(embed=embed)
+        if not all_items:
+            await ctx.followup.send("リストに登録されているデータがありません。", ephemeral=True)
+            return
+            
+        # 新しいページ送りViewを作成
+        view = ChecklistPaginationView(all_items)
+        # 最初のページのEmbedを取得
+        initial_embed = await view.get_page_content()
+        
+        # 最初のページとボタンを送信
+        await ctx.followup.send(embed=initial_embed, view=view)
+        
     except Exception as e:
         await ctx.followup.send(f"リスト表示中にエラーが発生: {e}", ephemeral=True)
 
@@ -567,6 +627,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
