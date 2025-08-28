@@ -241,7 +241,7 @@ class GroupSelectionView(View):
         return True
 
 
-ITEMS_PER_PAGE = 5 # 1ページあたりに表示するキャラクター数
+ITEMS_PER_PAGE = 30 # 1ページあたりに表示するキャラクター数
 
 class ChecklistPaginationView(View):
     def __init__(self, all_items: list):
@@ -627,6 +627,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
