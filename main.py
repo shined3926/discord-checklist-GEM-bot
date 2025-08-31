@@ -77,16 +77,34 @@ def create_checklist_embed(paged_data, current_page, total_pages):
     embed = discord.Embed(title="共有チェックリスト", color=discord.Color.blue())
     embed.set_footer(text=f"ページ {current_page + 1} / {total_pages}")
     
-    description = ""
+    field_value = ""
+    field_count = 1
+    
+    # 渡された1ページ分のデータを処理
     for char_name, holders in paged_data.items():
-        description += f"**・{char_name}**\n"
+        char_block = f"**・{char_name}**\n"
         sorted_holders = sorted(holders, key=lambda x: x.get('追加者', ''))
         for holder in sorted_holders:
             author = holder.get('追加者', '不明')
             level = holder.get('レベル', 'N/A')
-            description += f"　所持者: {author} \t Lv. {level}\n"
-            
-    embed.description = description
+            char_block += f"　所持者: {author} \t Lv. {level}\n"
+        
+        # 1フィールドの文字数上限(1024)を超えそうなら、新しいフィールドに移る
+        if len(field_value) + len(char_block) > 1024:
+            embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
+            field_value = char_block
+            field_count += 1
+        else:
+            field_value += char_block
+    
+    # 残りの内容を最後のフィールドとして追加
+    if field_value:
+        embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
+
+    # もしフィールドが1つも追加されなかった場合（データが空の場合など）
+    if len(embed.fields) == 0:
+        embed.description = "表示するアイテムがありません。"
+
     return embed
 
 # --- UIクラス ---
@@ -222,52 +240,38 @@ class GroupSelectionView(View):
             
         return True
 
-
-ITEMS_PER_PAGE = 30 # 1ページあたりに表示するキャラクター数
 class ChecklistPaginationView(View):
     def __init__(self, all_items: list):
         super().__init__(timeout=180)
         self.current_page = 0
         
-        # 最初に全データをキャラクター名でグループ化する
         self.grouped_data = {}
         for item in all_items:
             char_name = item.get('キャラクター名', '不明')
-            if char_name not in self.grouped_data:
-                self.grouped_data[char_name] = []
+            if char_name not in self.grouped_data: self.grouped_data[char_name] = []
             self.grouped_data[char_name].append(item)
         
-        # ページ分けの基準となる、ソート済みのキャラクター名のリストを作成
         self.sorted_char_names = sorted(self.grouped_data.keys())
+        self.items_per_page = 10 # 1ページあたりのキャラクター数
+        self.total_pages = -(-len(self.sorted_char_names) // self.items_per_page)
         
-        # 総ページ数を計算
-        self.total_pages = -(-len(self.sorted_char_names) // ITEMS_PER_PAGE)
-        
+        # ボタンの初期状態を設定
         self.update_buttons()
 
     def update_buttons(self):
-        """現在のページに応じてボタンを有効化・無効化する"""
-        # コンポーネントの中からボタンを探す
+        """現在のページに応じてボタンの状態を更新する"""
         prev_button = discord.utils.get(self.children, custom_id="prev_page")
         next_button = discord.utils.get(self.children, custom_id="next_page")
-
-        if prev_button:
-            prev_button.disabled = self.current_page == 0
-        if next_button:
-            next_button.disabled = self.current_page >= self.total_pages - 1
+        if prev_button: prev_button.disabled = self.current_page == 0
+        if next_button: next_button.disabled = self.current_page >= self.total_pages - 1
 
     def get_page_content(self) -> discord.Embed:
         """現在のページのEmbedを生成する"""
-        start_index = self.current_page * ITEMS_PER_PAGE
-        end_index = start_index + ITEMS_PER_PAGE
-        
-        # 現在のページに表示するキャラクター名のリストをスライス
+        start_index = self.current_page * self.items_per_page
+        end_index = start_index + self.items_per_page
         char_names_for_page = self.sorted_char_names[start_index:end_index]
-        
-        # そのキャラクターのデータだけを抜き出す
         data_for_page = {name: self.grouped_data[name] for name in char_names_for_page}
         
-        # 修正されたEmbed生成関数を呼び出す
         return create_checklist_embed(data_for_page, self.current_page, self.total_pages)
 
     @discord.ui.button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", disabled=True)
@@ -625,6 +629,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
