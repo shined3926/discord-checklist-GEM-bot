@@ -73,37 +73,20 @@ PREFECTURE_CODES = {
 MODAL_GROUP_SIZE = 5
 bot = discord.Bot()
 
-def create_checklist_embed(all_items):
+def create_checklist_embed(paged_data, current_page, total_pages):
     embed = discord.Embed(title="共有チェックリスト", color=discord.Color.blue())
+    embed.set_footer(text=f"ページ {current_page + 1} / {total_pages}")
     
-    if not all_items:
-        embed.description = "表示するアイテムがありません。"
-        return embed
-
-    # --- シンプルになったフォーマット処理 ---
     description = ""
-    # データをキャラクター名でグループ化
-    grouped_data = {}
-    for item in all_items:
-        char_name = item.get('キャラクター名', '不明')
-        if char_name not in grouped_data:
-            grouped_data[char_name] = []
-        grouped_data[char_name].append(item)
-    
-    # キャラクター名でソート
-    sorted_char_names = sorted(grouped_data.keys())
-    
-    # 説明文を組み立てる
-    for char_name in sorted_char_names:
+    for char_name, holders in paged_data.items():
         description += f"**・{char_name}**\n"
-        holders = sorted(grouped_data[char_name], key=lambda x: x.get('追加者', ''))
-        for holder in holders:
+        sorted_holders = sorted(holders, key=lambda x: x.get('追加者', ''))
+        for holder in sorted_holders:
             author = holder.get('追加者', '不明')
             level = holder.get('レベル', 'N/A')
             description += f"　所持者: {author} \t Lv. {level}\n"
             
     embed.description = description
-    
     return embed
 
 # --- UIクラス ---
@@ -241,50 +224,68 @@ class GroupSelectionView(View):
 
 
 ITEMS_PER_PAGE = 30 # 1ページあたりに表示するキャラクター数
-
 class ChecklistPaginationView(View):
     def __init__(self, all_items: list):
-        super().__init__(timeout=180) # 3分でボタンは無効化
-        self.all_items = all_items
+        super().__init__(timeout=180)
         self.current_page = 0
-        # ページ数を計算 (例: 26アイテムなら3ページ)
-        self.total_pages = -(-len(self.all_items) // ITEMS_PER_PAGE)
         
-    async def get_page_content(self) -> discord.Embed:
-        """現在のページの内容をEmbedとして生成する"""
+        # 最初に全データをキャラクター名でグループ化する
+        self.grouped_data = {}
+        for item in all_items:
+            char_name = item.get('キャラクター名', '不明')
+            if char_name not in self.grouped_data:
+                self.grouped_data[char_name] = []
+            self.grouped_data[char_name].append(item)
+        
+        # ページ分けの基準となる、ソート済みのキャラクター名のリストを作成
+        self.sorted_char_names = sorted(self.grouped_data.keys())
+        
+        # 総ページ数を計算
+        self.total_pages = -(-len(self.sorted_char_names) // ITEMS_PER_PAGE)
+        
+        self.update_buttons()
+
+    def update_buttons(self):
+        """現在のページに応じてボタンを有効化・無効化する"""
+        # コンポーネントの中からボタンを探す
+        prev_button = discord.utils.get(self.children, custom_id="prev_page")
+        next_button = discord.utils.get(self.children, custom_id="next_page")
+
+        if prev_button:
+            prev_button.disabled = self.current_page == 0
+        if next_button:
+            next_button.disabled = self.current_page >= self.total_pages - 1
+
+    def get_page_content(self) -> discord.Embed:
+        """現在のページのEmbedを生成する"""
         start_index = self.current_page * ITEMS_PER_PAGE
         end_index = start_index + ITEMS_PER_PAGE
-        items_for_page = self.all_items[start_index:end_index]
         
-        # 既存のEmbed生成関数を再利用
-        embed = create_checklist_embed(items_for_page)
-        embed.title = "共有チェックリスト" # タイトルを少し変更
-        # フッターにページ番号を追加
-        embed.set_footer(text=f"ページ {self.current_page + 1} / {self.total_pages}")
-        return embed
+        # 現在のページに表示するキャラクター名のリストをスライス
+        char_names_for_page = self.sorted_char_names[start_index:end_index]
+        
+        # そのキャラクターのデータだけを抜き出す
+        data_for_page = {name: self.grouped_data[name] for name in char_names_for_page}
+        
+        # 修正されたEmbed生成関数を呼び出す
+        return create_checklist_embed(data_for_page, self.current_page, self.total_pages)
 
-    @discord.ui.button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page")
+    @discord.ui.button(label="◀️ 前へ", style=discord.ButtonStyle.primary, custom_id="prev_page", disabled=True)
     async def prev_button_callback(self, button, interaction):
         if self.current_page > 0:
             self.current_page -= 1
-            embed = await self.get_page_content()
-            # 前のページがなければボタンを無効化
-            self.children[0].disabled = self.current_page == 0
-            # 次のページがあればボタンを有効化
-            self.children[1].disabled = False
+            embed = self.get_page_content()
+            self.update_buttons()
             await interaction.response.edit_message(embed=embed, view=self)
         else:
-            await interaction.response.defer() # 何もせず応答
+            await interaction.response.defer()
 
     @discord.ui.button(label="次へ ▶️", style=discord.ButtonStyle.primary, custom_id="next_page")
     async def next_button_callback(self, button, interaction):
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
-            embed = await self.get_page_content()
-            # 次のページがなければボタンを無効化
-            self.children[1].disabled = self.current_page == self.total_pages - 1
-            # 前のページボタンを有効化
-            self.children[0].disabled = False
+            embed = self.get_page_content()
+            self.update_buttons()
             await interaction.response.edit_message(embed=embed, view=self)
         else:
             await interaction.response.defer()
@@ -379,10 +380,8 @@ async def checklist(ctx):
             await ctx.followup.send("リストに登録されているデータがありません。", ephemeral=True)
             return
             
-        # 新しいページ送りViewを作成
         view = ChecklistPaginationView(all_items)
-        # 最初のページのEmbedを取得
-        initial_embed = await view.get_page_content()
+        initial_embed = view.get_page_content()
         
         # 最初のページとボタンを送信
         await ctx.followup.send(embed=initial_embed, view=view)
@@ -626,6 +625,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
