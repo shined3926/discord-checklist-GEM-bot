@@ -73,38 +73,37 @@ PREFECTURE_CODES = {
 MODAL_GROUP_SIZE = 5
 bot = discord.Bot()
 
-# --- Embed生成関数 ---
 def create_checklist_embed(all_items):
     embed = discord.Embed(title="共有チェックリスト", color=discord.Color.blue())
-    embed.set_footer(text="レベル更新は /bulk_update または下のメニューから行えます。")
-    if not all_items:
-        embed.description = "まだ誰もキャラクターを登録していません。"
-        return embed
     
+    if not all_items:
+        embed.description = "表示するアイテムがありません。"
+        return embed
+
+    # --- シンプルになったフォーマット処理 ---
+    description = ""
+    # データをキャラクター名でグループ化
     grouped_data = {}
     for item in all_items:
         char_name = item.get('キャラクター名', '不明')
-        if char_name not in grouped_data: grouped_data[char_name] = []
+        if char_name not in grouped_data:
+            grouped_data[char_name] = []
         grouped_data[char_name].append(item)
     
+    # キャラクター名でソート
     sorted_char_names = sorted(grouped_data.keys())
     
-    field_value = ""
-    field_count = 1
+    # 説明文を組み立てる
     for char_name in sorted_char_names:
-        char_block = f"**・{char_name}**\n"
+        description += f"**・{char_name}**\n"
         holders = sorted(grouped_data[char_name], key=lambda x: x.get('追加者', ''))
         for holder in holders:
-            char_block += f"　所持者: {holder.get('追加者', '不明')} \t Lv. {holder.get('レベル', 'N/A')}\n"
-        
-        if len(field_value) + len(char_block) > 1024:
-            embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
-            field_value = char_block
-            field_count += 1
-        else:
-            field_value += char_block
-    if field_value:
-        embed.add_field(name=f"リスト ({field_count})", value=field_value, inline=False)
+            author = holder.get('追加者', '不明')
+            level = holder.get('レベル', 'N/A')
+            description += f"　所持者: {author} \t Lv. {level}\n"
+            
+    embed.description = description
+    
     return embed
 
 # --- UIクラス ---
@@ -627,6 +626,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
