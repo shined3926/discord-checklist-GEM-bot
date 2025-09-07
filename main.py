@@ -328,7 +328,7 @@ def calculate_next_fb(base_datetime_str: str, interval_hours: int) -> datetime.d
 
 # --- 定期ダンジョン通知機能 ---
 JST = pytz.timezone('Asia/Tokyo')
-@tasks.loop(minutes=180) # 180分ごとにこの関数を実行する
+@tasks.loop(minutes=5) # 5分ごとにこの関数を実行する
 async def dungeon_reminder():
     now = datetime.datetime.now(JST)
     weekday = now.weekday() # 曜日を取得 (月曜日=0, 日曜日=6)
@@ -629,6 +629,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
