@@ -350,6 +350,10 @@ async def dungeon_reminder():
     if weekday == 6 and hour == 20 and minute == 0:
         await channel.send("【定期ダンジョン通知】\nこの後1時間後から定期開催の党ダンジョンが始まります！")
 
+    # 日曜日(6) の 21:30
+    if weekday == 6 and hour == 21 and minute == 30:
+        await channel.send("通知テスト")
+
 # --- コマンド & イベント定義 ---
 @bot.event
 async def on_ready():
@@ -629,6 +633,7 @@ async def on_application_command_error(ctx: discord.ApplicationContext, error: d
 
 # .env読み込みとBot起動
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
